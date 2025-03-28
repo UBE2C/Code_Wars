@@ -519,33 +519,8 @@ highest_rank(test_array_5)
 
 
 ## Testing some basic functions and principles
-
-
-# Trying to differentiate floats and ints
-test_year = 1604
-
-per_hundred_remainder = test_year % 100
-
-if test_year % 100 == 0:
-    print("This is not a leap year")
-
-elif test_year % 400  == 0 and test_year % 4 == 0:
-    print("This is a leap year.")
-
-else:
-    print("This is not a leap year")
-
-
-
-year = 1600
-
-
-
 def is_leap_year(year):
-    if year % 100 == 0:
-        return False
-
-    elif year % 400  == 0 or year % 4 == 0:
+    if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
         return True
 
     else:
@@ -553,21 +528,209 @@ def is_leap_year(year):
 
 is_leap_year(year = 1600)
 
+###################################################################################################  Kata end  #####################################################################################################
 
 
 
 
 
 
+###################################################################################################  alternate  #####################################################################################################
+                                                                                                  #   6 kyu     #
+
+
+"""Write a function that determines if a word has alternating consonants and vowels and returns True or False accordingly"""
+def alternate(word: str) -> bool:
+    vowels: set[str] = {"a", "e", "i", "o", "u"}
+    answer: bool = bool()
+
+
+    for i in range(len(word) - 1):
+        if word[i] in vowels and word[i+1] not in vowels:
+            answer = True
+        elif word[i] not in vowels and word[i+1] in vowels:
+            answer = True
+        else:
+            answer = False
+            break
+
+    return answer
+
+###################################################################################################  Kata end  #####################################################################################################
 
 
 
 
 
 
+###################################################################################################  HQ9+ interpreter  #####################################################################################################
+                                                                                                  #       8 kyu        #
+
+"""You task is to implement an simple interpreter for the notorious esoteric language HQ9+ that will work for a single character input:
+
+If the input is 'H', return 'Hello World!'
+If the input is 'Q', return the input
+If the input is '9', return the full lyrics of 99 Bottles of Beer."""
+def HQ9_interpreter(character: str) -> str:
+    #Initialize the output
+    output_str: str = ""
+
+    #Input check
+    if character == "H":
+        output_str = "Hello World!"
+    elif character == "Q":
+        output_str = character
+    elif character == "9":
+        for i in range (99, -1, -1):
+            if i > 2:
+                output_str += f"{i} bottles of beer on the wall, {i} bottles of beer.\nTake one down and pass it around, {i - 1} bottles of beer on the wall.\n"
+            elif i == 2:
+                output_str += f"{i} bottles of beer on the wall, {i} bottles of beer.\nTake one down and pass it around, {i - 1} bottle of beer on the wall.\n"
+            elif i == 1:
+                output_str += f"{i} bottle of beer on the wall, {i} bottle of beer.\nTake one down and pass it around, no more bottles of beer on the wall.\n"
+            elif i == 0:
+                output_str += "No more bottles of beer on the wall, no more bottles of beer.\nGo to the store and buy some more, 99 bottles of beer on the wall."
+    else:
+        output_str = None
+
+    return output_str
+
+###################################################################################################  Kata end  #####################################################################################################
 
 
 
 
 
 
+###################################################################################################  Esolang Interpreters #1  #####################################################################################################
+                                                                                                  #  MiniStringFuck - 6 kyu   #
+
+
+"""The Language
+MiniStringFuck is a derivative of the famous Brainfuck which contains a memory cell as its only form of data storage as opposed to a memory tape of 30,000 cells in Brainfuck. The memory cell in MiniStringFuck initially starts at 0. MiniStringFuck contains only 2 commands as opposed to 8:
+
++ - Increment the memory cell. If it reaches 256, wrap to 0.
+. - Output the value of the memory cell as a character with code point equal to the value
+For example, here is a MiniStringFuck program that outputs the string "Hello, World!":
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++.+++++++..+++.+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++.+++.++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++."""
+
+def MSF_interpreter(code: str) -> str:
+    mem_cell: int = 0
+    mem_array: list[int] = []
+    output_str: str = ""
+
+    for i in range(len(code)):
+        if code[i] == "+": #Increment as needed
+            mem_cell += 1
+            if mem_cell == 256: #Ensure it is an 8 bit cell
+                mem_cell = 0
+        elif code[i] == ".":
+            mem_array.append(mem_cell) #Output the cell into an int array
+        
+    for i in range(len(mem_array)): #Translate the int array to ASCII chars
+        output_str += chr(mem_array[i])
+
+    return output_str
+
+###################################################################################################  Kata end  #####################################################################################################
+
+
+
+
+
+
+###################################################################################################  Esolang Interpreters #2  #####################################################################################################
+                                                                                                  #   Smallfuck - 5 kyu   #
+
+
+"""Here are a list of commands in Smallfuck:
+
+> - Move pointer to the right (by 1 cell)
+< - Move pointer to the left (by 1 cell)
+* - Flip the bit at the current cell
+[ - Jump past matching ] if value at current cell is 0
+] - Jump back to matching [ (if value at current cell is nonzero)
+
+The Task
+Implement a custom Smallfuck interpreter interpreter() (interpreter in Haskell and F#, Interpreter in C#, custom_small_fuck:interpreter/2 in Erlang) which accepts the following arguments:
+
+code - Required. The Smallfuck program to be executed, passed in as a string. May contain non-command characters. Your interpreter should simply ignore any non-command characters.
+tape - Required. The initial state of the data storage (tape), passed in as a string. For example, if the string "00101100" is passed in then it should translate to something of this form within your interpreter: [0, 0, 1, 0, 1, 1, 0, 0]. You may assume that all input strings for tape will be non-empty and will only contain "0"s and "1"s.
+Your interpreter should return the final state of the data storage (tape) as a string in the same format that it was passed in. For example, if the tape in your interpreter ends up being [1, 1, 1, 1, 1] then return the string "11111".
+"""
+
+def interpreter(code, tape):
+    bit_array: list[int] = []
+    code_pointer: int = 0
+    tape_pointer: int = 0
+    output_string: str = ""
+    start_stack: list[int] = [] #LiFo
+    end_stack: list[int] = [] #FiFo
+
+    for i in range(len(tape)):
+        bit_array.append(int(tape[i]))
+
+    while code_pointer < len(code):
+        if code[code_pointer] == ">":
+            tape_pointer += 1
+            if tape_pointer > len(bit_array) -1 :
+                break
+            
+            
+        elif code[code_pointer] == "<":
+            tape_pointer -= 1
+            if tape_pointer < 0:
+                break
+            
+            
+        elif code[code_pointer] == "*" and bit_array[tape_pointer] == 0:
+            bit_array[tape_pointer] = 1
+
+        elif code[code_pointer] == "*" and bit_array[tape_pointer] == 1:
+            bit_array[tape_pointer] = 0
+
+        elif code[code_pointer] == "[" and code_pointer not in start_stack:
+            start_stack.append(code_pointer)
+            sub_code_pointer: int = code_pointer
+            
+            while len(start_stack) != len(end_stack) and sub_code_pointer < len(code): #map the loop/nested loops
+                sub_code_pointer += 1
+                if code[sub_code_pointer] == "[":
+                    start_stack.append(sub_code_pointer)
+                elif code[sub_code_pointer] == "]":
+                    end_stack.append(sub_code_pointer)
+            #print(start_stack, end_stack)
+
+            if len(start_stack) > len(end_stack) and sub_code_pointer == len(code): #loop marker mismatch handling
+                raise ValueError(f"Unclosed loop-start marker [ found at {start_stack[-1]}. Each open [ marker must have a closing ] marker pair.")
+            elif len(start_stack) < len(end_stack) and sub_code_pointer == len(code):
+                raise ValueError(f"Uninitiated loop-end marker ] found at {end_stack[0]}. Each open [ marker must have a closing ] marker pair.")
+
+            code_pointer -= 1 #jump back to evaluate the first [ in the next iteration
+   
+        elif code[code_pointer] == "[" and code_pointer in start_stack: #eval the start of the mapped loop/loops
+            if bit_array[tape_pointer] == 0: #if bit array position is 0 jump to loop close
+                start_stack_index: int = start_stack.index(code_pointer) # Find the index of the current start marker
+                code_pointer = end_stack[-(start_stack_index + 1)] #no -1 offset as we don't eval loop close in the next loop iter step
+        
+        #elif code[code_pointer] == "]" and code_pointer not in end_stack: #loop marker mismatch handling
+            #raise ValueError(f"Uninitiated loop-end marker ] found at {code_pointer}. Each close [ marker must have an opening ] marker pair.")
+
+        elif code[code_pointer] == "]" and code_pointer in end_stack: #eval the end of the mapped loop/loops
+            if bit_array[tape_pointer] == 1:  # If current bit is 1, jump back to corresponding start
+                end_stack_index: int = end_stack.index(code_pointer)  # Find the index of the current end marker
+                code_pointer = start_stack[-(end_stack_index + 1)] - 1
+            else:
+                # If current bit is 0, exit the current loop
+                start_stack.pop()
+                end_stack.pop(0)
+
+        code_pointer += 1 #next loop iter, move code pointer
+        
+
+    for i in range(len(bit_array)):
+        output_string += str(bit_array[i])
+
+    return output_string
+
+###################################################################################################  Kata end  #####################################################################################################
