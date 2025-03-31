@@ -699,7 +699,7 @@ def interpreter(code, tape):
                     start_stack.append(sub_code_pointer)
                 elif code[sub_code_pointer] == "]":
                     end_stack.append(sub_code_pointer)
-            #print(start_stack, end_stack)
+            
 
             if len(start_stack) > len(end_stack) and sub_code_pointer == len(code): #loop marker mismatch handling
                 raise ValueError(f"Unclosed loop-start marker [ found at {start_stack[-1]}. Each open [ marker must have a closing ] marker pair.")
@@ -713,13 +713,13 @@ def interpreter(code, tape):
                 start_stack_index: int = start_stack.index(code_pointer) # Find the index of the current start marker
                 code_pointer = end_stack[-(start_stack_index + 1)] #no -1 offset as we don't eval loop close in the next loop iter step
         
-        #elif code[code_pointer] == "]" and code_pointer not in end_stack: #loop marker mismatch handling
-            #raise ValueError(f"Uninitiated loop-end marker ] found at {code_pointer}. Each close [ marker must have an opening ] marker pair.")
+        elif code[code_pointer] == "]" and code_pointer not in end_stack: #loop marker mismatch handling
+            raise ValueError(f"Uninitiated loop-end marker ] found at {code_pointer}. Each close [ marker must have an opening ] marker pair.")
 
         elif code[code_pointer] == "]" and code_pointer in end_stack: #eval the end of the mapped loop/loops
             if bit_array[tape_pointer] == 1:  # If current bit is 1, jump back to corresponding start
                 end_stack_index: int = end_stack.index(code_pointer)  # Find the index of the current end marker
-                code_pointer = start_stack[-(end_stack_index + 1)] - 1
+                code_pointer = start_stack[-(end_stack_index + 1)] - 1 # -1 offset as we don't eval loop close in the next loop iter step
             else:
                 # If current bit is 0, exit the current loop
                 start_stack.pop()
@@ -734,3 +734,301 @@ def interpreter(code, tape):
     return output_string
 
 ###################################################################################################  Kata end  #####################################################################################################
+
+
+
+
+
+
+###################################################################################################  Esolang Interpreters #3  #####################################################################################################
+                                                                                                  #   Paintfuck - 5 kyu   #
+
+
+"""Valid commands in Paintfuck include:
+
+n - Move data pointer north (up)
+e - Move data pointer east (right)
+s - Move data pointer south (down)
+w - Move data pointer west (left)
+* - Flip the bit at the current cell (same as in Smallfuck)
+[ - Jump past matching ] if bit under current pointer is 0 (same as in Smallfuck)
+] - Jump back to the matching [ (if bit under current pointer is nonzero) (same as in Smallfuck)
+
+Your task is to implement a custom Paintfuck interpreter interpreter()/Interpret which accepts the following arguments in the specified order:
+
+code - Required. The Paintfuck code to be executed, passed in as a string. May contain comments (non-command characters), in which case your interpreter should simply ignore them. If empty, simply return the initial state of the data grid.
+iterations - Required. A non-negative integer specifying the number of iterations to be performed before the final state of the data grid is returned. See notes for definition of 1 iteration. If equal to zero, simply return the initial state of the data grid.
+width - Required. The width of the data grid in terms of the number of data cells in each row, passed in as a positive integer.
+height - Required. The height of the data grid in cells (i.e. number of rows) passed in as a positive integer."""
+
+def PaintFck_interpreter(code: str, iterations: int, width: int, height: int) -> str:
+    ##Argument type checks
+    if not isinstance(code, (str)):
+        raise ValueError(f"The code argument must be of type string.")
+    elif not isinstance(iterations, (int)):
+        raise ValueError(f"The iterations argument must be of type integer.")
+    elif not isinstance(width, (int)):
+        raise ValueError(f"The width argument must be of type integer.")
+    elif not isinstance(height, (int)):
+        raise ValueError(f"The height argument must be of type integer.")
+    elif width < 0 or height < 0:
+        raise ValueError(f"The width: {width} and height: {height} arguments must be positive integers.")
+    
+    ##Variable initializations
+    bit_matrix: list[list[int]] = [[0 for _ in range(width)] for _ in range(height)]
+    code_pointer: int = 0
+    row_pointer: int = 0
+    col_pointer: int = 0
+    output_string: str = ""
+    loop_map: dict[int | int] = {} #a dict to hold loop start end coordinate pairs
+    stack: list[int] = [] #LiFo
+
+    ##Loop mapping - this is an improvement over the two stack solution
+    def map_loops(code_to_map: str) -> dict[int | int]:
+        for i in range(len(code_to_map)):
+            if code_to_map[i] == "[":
+                stack.append(i) #push the start index to the stack
+
+            elif code_to_map[i] == "]" and len(stack) == 0: # error handling
+                raise ValueError(f"Uninitiated loop-end marker ] found at {i}. Each open [ marker must have a closing ] marker pair.")
+            
+            elif code_to_map[i] == "]" and len(stack) != 0: #if close point found pop the corresponding opening from the stack and save the pair in the map
+                loop_start: int = stack.pop() #pop the opening index
+                loop_map[loop_start] = i #pair the closing index
+                loop_map[i] = loop_start #map backwards too for backwards jumping
+
+            elif len(stack) > 0 and i == len(code_to_map):
+                raise ValueError(f"Unclosed loop-start marker [ found at {stack}. Each open [ marker must have a closing ] marker pair.")
+            
+        return loop_map
+    
+    loop_map = map_loops(code_to_map=code)
+    
+    ##Main interpreter loop
+    while iterations > 0 and code_pointer < len(code):
+        
+        if code[code_pointer] == "n": #n - Move data pointer north (up)
+            row_pointer -= 1
+            if row_pointer < 0:
+                row_pointer = len(bit_matrix) - 1
+            
+            iterations -= 1
+        
+        elif code[code_pointer] == "e": #e - Move data pointer east (right)
+            col_pointer += 1
+            if col_pointer > len(bit_matrix[0]) - 1: #assumes a matrix with equal length rows
+                col_pointer = 0
+            
+            iterations -= 1
+        
+        elif code[code_pointer] == "s": #s - Move data pointer south (down)
+            row_pointer += 1
+            if row_pointer > len(bit_matrix) - 1:
+                row_pointer = 0
+            
+            iterations -= 1
+
+        elif code[code_pointer] == "w": #w - Move data pointer west (left)
+            col_pointer -= 1
+            
+            if col_pointer < 0:
+                col_pointer = len(bit_matrix[0]) - 1 #assumes a matrix with equal length rows
+            
+            iterations -= 1
+
+        #elif code[code_pointer] in ["N", "E", "S", "W"]:
+        #    raise ValueError(f"The movement instruction: {code[code_pointer]} at position {code_pointer} should be given in lower case.")
+        
+        elif code[code_pointer] == "*":
+            bit_matrix[row_pointer][col_pointer] = 1 - bit_matrix[row_pointer][col_pointer]
+            
+            iterations -= 1
+
+        elif code[code_pointer] == "[": #eval the start of the mapped loop/loops
+            if bit_matrix[row_pointer][col_pointer] == 0: #if bit matrix position is 0 jump to loop close
+                code_pointer = loop_map.get(code_pointer)
+
+            iterations -= 1
+
+        elif code[code_pointer] == "]": #eval the end of the mapped loop/loops
+            if bit_matrix[row_pointer][col_pointer] == 1:  # If current bit is 1, jump back to corresponding start
+                code_pointer = loop_map.get(code_pointer)
+
+            iterations -= 1 
+
+        code_pointer += 1
+        
+    for r in range(len(bit_matrix)):
+            for c in range(len(bit_matrix[r])):
+                if c == len(bit_matrix[r]) - 1 and r < len(bit_matrix) - 1:
+                    output_string += str(bit_matrix[r][c]) + "\r\n"
+                else:
+                    output_string += str(bit_matrix[r][c])
+
+    return output_string
+        
+###################################################################################################  Kata end  #####################################################################################################
+
+
+
+
+
+
+###################################################################################################  Esolang Interpreters #4  #####################################################################################################
+                                                                                                  #   Boolfuck - 3 kyu   #
+
+"""Anyway, here is a list of commands and their descriptions:
+
++ - Flips the value of the bit under the pointer
+, - Reads a bit from the input stream, storing it under the pointer. The end-user types information using characters, though. Bytes are read in little-endian order—the first bit read from the character a, for instance, is 1, followed by 0, 0, 0, 0, 1, 1, and finally 0. If the end-of-file has been reached, outputs a zero to the bit under the pointer.
+; - Outputs the bit under the pointer to the output stream. The bits get output in little-endian order, the same order in which they would be input. If the total number of bits output is not a multiple of eight at the end of the program, the last character of output gets padded with zeros on the more significant end.
+< - Moves the pointer left by 1 bit
+> - Moves the pointer right by 1 bit
+[ - If the value under the pointer is 0 then skip to the corresponding ]
+] - Jumps back to the matching [ character, if the value under the pointer is 1"""
+
+def BoolFck_interpreter(code: str, input: str = "") -> str:
+    ##Argument type checks
+    if not isinstance(code, (str)):
+        raise ValueError(f"The code argument must be of type string.")
+    elif not isinstance(input, (str)):
+        raise ValueError(f"The input argument must be of type string.")
+
+    ##Initialize variables
+    code_pointer: int = 0
+    memory_pointer: int = 0
+    memory_bit_array: list[int] = [0]
+    input_pointer: int = 0
+    input_bit_array: list[int] = []
+    output_string: str = ""
+    output_bit_array: list[int] = []
+    output_byte_array: list[int] = []
+    loops: dict[int | int] = {}
+    
+    ##Loop mapping function
+    def map_loops(code_to_map: str) -> dict:
+        stack: list[int] = []
+        loop_map: dict[int | int] = {}
+        
+        for i in range(len(code_to_map)):
+            if code_to_map[i] == "[":
+                stack.append(i)
+
+            elif code_to_map[i] == "]" and len(stack) == 0:
+                raise ValueError(f"Uninitiated loop-end marker ] found at {i}. Each open [ marker must have a closing ] marker pair.")
+            
+            elif code_to_map[i] == "]":
+                loop_start: int = stack.pop()
+                loop_map[loop_start] = i
+                loop_map[i] = loop_start
+
+            elif len(stack) > 0 and i == len(code_to_map):
+                raise ValueError(f"Unclosed loop-start marker [ found at {stack}. Each open [ marker must have a closing ] marker pair.")
+        
+        return loop_map
+    
+    ##Input reading function
+    def read_input_stream(input_stream: str) -> list[int]:
+        input_byte: int = 0
+        bit_lst: list[list[str]] = []
+        bit_string: list[int] = []
+
+        for i in range(len(input_stream)):
+            input_byte = ord(input_stream[i])
+            bit_lst.append(list(format(input_byte, "b")))
+
+            while len(bit_lst[i]) < 8:
+                bit_lst[i].insert(0, "0")
+            
+            bit_lst[i].reverse()
+            bit_string.extend(int(bit) for bit in bit_lst[i])
+
+        return bit_string
+
+    loops = map_loops(code)
+    input_bit_array = read_input_stream(input)
+            
+    ##Main interpreter loop
+    while code_pointer < len(code):
+        
+        if code[code_pointer] == "<":
+            memory_pointer -= 1
+            if memory_pointer < 0:
+                memory_bit_array.insert(0, 0)
+                memory_pointer = 0
+
+        elif code[code_pointer] == ">":
+            memory_pointer += 1
+            if memory_pointer >= len(memory_bit_array):
+                memory_bit_array.append(0)
+
+        elif code[code_pointer] == "+":
+            memory_bit_array[memory_pointer] = 1 - memory_bit_array[memory_pointer]
+        
+        elif code[code_pointer] == "," and len(input_bit_array) > 0:
+            if input_pointer >= len(input_bit_array):
+                memory_bit_array[memory_pointer] = 0
+            else:
+                memory_bit_array[memory_pointer] = input_bit_array[input_pointer]
+            input_pointer += 1
+                
+
+        elif code[code_pointer] == ";":
+            output_bit_array.append(memory_bit_array[memory_pointer])
+
+        elif code[code_pointer] == "[": #eval the start of the mapped loop/loops
+            if memory_bit_array[memory_pointer] == 0: #if bit matrix position is 0 jump to loop close
+                code_pointer = loops.get(code_pointer)
+
+        elif code[code_pointer] == "]": #eval the end of the mapped loop/loops
+            if memory_bit_array[memory_pointer] == 1:  # If current bit is 1, jump back to corresponding start
+                code_pointer = loops.get(code_pointer) 
+
+        code_pointer += 1
+
+    ##Convert output string
+    def byte_array_converter(bit_array: list[int]) -> list[int]:
+        byte_lst: list[int] = []
+        byte: list[int] = []
+        
+
+        for i in range(len(bit_array)):
+            byte.append(bit_array[i])
+            
+            if len(byte) == 8:
+                byte.reverse()
+                number: int = 0
+
+                for e in range(len(byte)):
+                    number = (number << 1) | byte[e]
+                
+                byte_lst.append(number)
+                byte.clear()
+            
+        if len(byte) > 0:
+                
+            while len(byte) < 8:
+                byte.append(0)
+                
+            byte.reverse()
+            number: int = 0
+
+            for e in range(len(byte)):
+                number = (number << 1) | byte[e]
+                
+            byte_lst.append(number)
+            byte.clear()
+
+        return byte_lst
+    
+    output_byte_array = byte_array_converter(output_bit_array)
+    
+
+    ##Convert output byte array to string
+    for i in range(len(output_byte_array)): #Translate the int array to ASCII chars
+        output_string += chr(output_byte_array[i])
+
+    return output_string
+
+###################################################################################################  Kata end  #####################################################################################################
+
