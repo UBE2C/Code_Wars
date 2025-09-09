@@ -1032,3 +1032,992 @@ def BoolFck_interpreter(code: str, input: str = "") -> str:
 
 ###################################################################################################  Kata end  #####################################################################################################
 
+
+
+
+
+
+###################################################################################################  Esolang Interpreters #5  #####################################################################################################
+                                                                                                  #   Befunge - 4 kyu   #
+
+"""
+Your task is to write a method which will interpret Befunge-93 code! Befunge-93 is a language in which the code is presented not as a series of instructions, but as instructions scattered on a 2D plane; your pointer starts at the top-left corner and defaults to moving right through the code. Note that the instruction pointer wraps around the screen! There is a singular stack which we will assume is unbounded and only contain integers. While Befunge-93 code is supposed to be restricted to 80x25, you need not be concerned with code size. Befunge-93 supports the following instructions (from Wikipedia):
+
+0-9 Push this number onto the stack.
++ Addition: Pop a and b, then push a+b.
+- Subtraction: Pop a and b, then push b-a.
+* Multiplication: Pop a and b, then push a*b.
+/ Integer division: Pop a and b, then push b/a, rounded down. If a is zero, push zero.
+% Modulo: Pop a and b, then push the b%a. If a is zero, push zero.
+! Logical NOT: Pop a value. If the value is zero, push 1; otherwise, push zero.
+` (backtick) Greater than: Pop a and b, then push 1 if b>a, otherwise push zero.
+> Start moving right.
+< Start moving left.
+^ Start moving up.
+v Start moving down.
+? Start moving in a random cardinal direction.
+_ Pop a value; move right if value = 0, left otherwise.
+| Pop a value; move down if value = 0, up otherwise.
+" Start string mode: push each character's ASCII value all the way up to the next ".
+: Duplicate value on top of the stack. If there is nothing on top of the stack, push a 0.
+\ Swap two values on top of the stack. If there is only one value, pretend there is an extra 0 on bottom of the stack.
+$ Pop value from the stack and discard it.
+. Pop value and output as an integer.
+, Pop value and output the ASCII character represented by the integer code that is stored in the value.
+# Trampoline: Skip next cell.
+p A "put" call (a way to store a value for later use). Pop y, x and v, then change the character at the position (x,y) in the program to the character with ASCII value v.
+g A "get" call (a way to retrieve data in storage). Pop y and x, then push ASCII value of the character at that position in the program.
+@ End program.
+  (i.e. a space) No-op. Does nothing.
+The above list is slightly modified: you'll notice if you look at the Wikipedia page that we do not use the user input instructions and dividing by zero simply yields zero.
+"""
+
+
+import time
+
+def interpret(code):
+    ##Initialize variables
+    code_matrix: list[list[str]] = [[" " for _ in range(80)] for _ in range(25)]
+    stack: list[int] = []
+    code_pointer: dict[str | int] = {"row" : 0, "col" : 0}
+    move_dir: str = "e"
+    output: str = ""
+
+    def construct_code_matrix(code_to_mat: str, matrix: list[list[str]]) -> list[list[str]]:
+        x: int = 0
+        y: int = 0
+        c_matrix = [row.copy() for row in matrix]  # Deep copy each row, otherwise the nested lists are not copied, only referenced...
+
+        for i in range(len(code_to_mat)):
+            if code_to_mat[i] == "\n":
+                y += 1
+                x = 0
+                continue
+            
+            c_matrix[y][x] = code_to_mat[i]
+            x += 1
+
+        return c_matrix
+    
+    def move() -> None:
+        if move_dir == "e":
+            code_pointer["col"] += 1
+            if code_pointer["col"] == len(code_matrix[0]):
+                    code_pointer["col"] = 0
+        elif move_dir == "w":
+            code_pointer["col"] -= 1
+            if code_pointer["col"] < 0:
+                    code_pointer["col"] = len(code_matrix[0]) - 1 #fixed toroidal wrapping
+        elif move_dir == "s":
+            code_pointer["row"] += 1
+            if code_pointer["row"] == len(code_matrix):
+                    code_pointer["row"] = 0
+        elif move_dir == "n":
+            code_pointer["row"] -= 1
+            if code_pointer["row"] < 0:
+                    code_pointer["row"] = len(code_matrix) - 1 #fixed toroidal wrapping
+
+    def random_int_generator() -> str: #8-bit xorshift RNG
+        random_int: int = int()
+        random_value_range: int = 5
+        max_8bit_range: int = 256
+        output_int: int = int()
+
+        #Apply rejection sampling correction (needed if the raw range size is not a multiple of the draw range size)
+        corrected_range: int = max_8bit_range - (max_8bit_range % random_value_range)
+
+        while True:
+            seed: int = int(time.time() * 10000)
+            random_int = (seed ^ (seed << 3)) & 0xFF
+            random_int = (random_int ^ (random_int >> 2)) & 0xFF
+            random_int = (random_int ^ (random_int << 1)) & 0xFF
+            
+            if random_int < corrected_range:
+                output_int = random_int % random_value_range
+                break
+
+        return output_int
+
+    
+    code_matrix = construct_code_matrix(code_to_mat = code, matrix = code_matrix)
+
+    break_counter: int = 0
+    end_process: bool = False
+    while end_process == False and break_counter < 10000:
+        
+        
+        if code_matrix[code_pointer["row"]][code_pointer["col"]] == ">":
+            move_dir = "e"
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "v":
+            move_dir = "s"
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "<":
+            move_dir = "w"
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "^":
+            move_dir = "n"
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "?":
+            new_direction: int = random_int_generator()
+            if new_direction == 0:
+                move_dir = "n"
+            elif new_direction == 1:
+                move_dir = "e"
+            elif new_direction == 2:
+                move_dir = "s"
+            elif new_direction == 3:
+                move_dir = "w"
+        
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "_":
+            new_direction: int = stack.pop()
+            if new_direction == 0:
+                move_dir = "e"
+            else:
+                move_dir = "w"
+        
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "|":
+            new_direction: int = stack.pop()
+            if new_direction == 0:
+                move_dir = "s"
+            else:
+                move_dir = "n"
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+            stack.append(int(code_matrix[code_pointer["row"]][code_pointer["col"]]))
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "+":
+            if len(stack) > 1:
+                a: int = stack.pop()
+                b: int = stack.pop()
+                stack.append(a + b)
+            
+            elif len(stack) == 1:
+                a: int = stack.pop()
+                b: int = 0
+                stack.append(a + b)
+
+            elif len(stack) == 0:
+                a: int = 0
+                b: int = 0
+                stack.append(a + b)
+
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "-":
+            if len(stack) > 1:
+                a: int = stack.pop()
+                b: int = stack.pop()
+                stack.append(b - a)
+            
+            elif len(stack) == 1:
+                a: int = stack.pop()
+                b: int = 0
+                stack.append(b - a)
+
+            elif len(stack) == 0:
+                a: int = 0
+                b: int = 0
+                stack.append(b - a)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "*":
+            if len(stack) > 1:
+                a: int = stack.pop()
+                b: int = stack.pop()
+                stack.append(a * b)
+            
+            elif len(stack) == 1:
+                stack.pop()
+                stack.append(0)
+
+            elif len(stack) == 0:
+                stack.append(0)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "/":
+            if len(stack) > 1:
+                a: int = stack.pop()
+                b: int = stack.pop()
+                if a == 0:
+                    stack.append(0)
+                else:
+                    stack.append(b // a)
+
+            elif len(stack) == 1:
+                stack.pop()
+                stack.append(0)
+
+            elif len(stack) == 0:
+                stack.append(0)
+                
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "%":
+            a: int = stack.pop()
+            b: int = stack.pop()
+            if a == 0:
+                stack.append(0)
+            else:
+                stack.append(b % a)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "!":
+            a: int = stack.pop()
+            if a == 0:
+                stack.append(1)
+            else:
+                stack.append(0)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "`":
+            a: int = stack.pop()
+            b: int = stack.pop()
+            if b > a:
+                stack.append(1)
+            else:
+                stack.append(0)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == '"':
+            move()
+            while code_matrix[code_pointer["row"]][code_pointer["col"]] != '"':
+                stack.append(ord(code_matrix[code_pointer["row"]][code_pointer["col"]]))
+                move()
+        
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == ":":
+            if len(stack) >= 1:
+                duplicate_val: int = stack[-1]
+                stack.append(duplicate_val)
+            
+            elif len(stack) == 0:
+                stack.append(0)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "\\":
+            if len(stack) > 1:
+                a: int = stack.pop()
+                b: int = stack.pop()
+
+                stack.append(a)
+                stack.append(b)
+            
+            elif len(stack) == 1:
+                a: int = stack.pop()
+
+                stack.append(a)
+                stack.append(0)
+
+            elif len(stack) == 0:
+                for i in range(2):
+                    stack.append(0)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "$":
+            if len(stack) >= 1:
+                stack.pop()
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == ".":
+                if len(stack) >= 1:
+                    output += str(stack.pop())
+                else:
+                    output += str(0)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == ",":
+                if len(stack) >= 1:
+                    output += chr(stack.pop())
+                else:
+                    output += chr(0)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "#":
+            move()
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "p":
+            y: int = stack.pop()
+            x: int = stack.pop()
+            v: int = stack.pop()
+
+            code_matrix[y][x] = chr(v)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "g":
+            y: int = stack.pop()
+            x: int = stack.pop()
+            
+            stack.append(ord(code_matrix[y][x]))
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "&":
+            while True:
+                try:
+                    input_val: str = input("Please provide an integer to be pushed onto the stack \n: ")
+                    input_int: int = int(input_val)
+                    break
+
+                except ValueError:
+                    print(f"the input you entered {input_val} cannot be turned into an integer. Please try again!")
+
+            stack.append(input_int)
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "~":
+            input_char: str = ""
+            input_char = input("Please provide a character, for it's ASCII value to be pushed onto the stack \n: ")
+            
+            while len(input_char) != 1:
+                input_char = input("The length of the input you provided is larger than 1. Please enter a single character \n: ")
+
+            stack.append(ord(input_char))
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "" or code_matrix[code_pointer["row"]][code_pointer["col"]] == " ":
+            pass
+
+        elif code_matrix[code_pointer["row"]][code_pointer["col"]] == "@":
+            end_process = True
+
+        
+        move()
+        break_counter += 1 
+        
+    return output
+
+###################################################################################################  Kata end  #####################################################################################################
+
+
+
+
+
+
+###################################################################################################  Esolang Interpreters #6  #####################################################################################################
+                                                                                                  #   Simple assembler - 5 kyu   #
+
+"""
+We want to create a simple interpreter of assembler which will support the following instructions:
+
+mov x y - copies y (either a constant value or the content of a register) into register x
+inc x - increases the content of the register x by one
+dec x - decreases the content of the register x by one
+jnz x y - jumps to an instruction y steps away (positive means forward, negative means backward, y can be a register or a constant), but only if x (a constant or a register) is not zero
+Register names are alphabetical (letters only). Constants are always integers (positive or negative).
+
+Note: the jnz instruction moves relative to itself. For example, an offset of -1 would continue at the previous instruction, while an offset of 2 would skip over the next instruction.
+
+The function will take an input list with the sequence of the program instructions and will execute them. The program ends when there are no more instructions to execute, then it returns a dictionary (a table in COBOL) with the contents of the registers.
+
+Also, every inc/dec/jnz on a register will always be preceeded by a mov on the register first, so you don't need to worry about uninitialized registers.
+"""
+
+def simple_assembler(program):
+    code_list: list[str] = program.copy()
+    instruction_pointer: int = 0
+    instructions: list[list[str]] = []
+    current_instruction: dict[str | str] = {}
+    registers: dict[str | int] = {}
+    registers_to_pop: list[str] = []
+
+    def tokenizer(code_lst: list[str]) -> None:
+        for i in range(len(code_lst)):
+            instruction: str = code_lst[i]
+            instructions.append(instruction.split(sep=" "))
+
+        return None
+    
+    def load_instruction(inst_lst: list[list[str]], ip: int) -> None:
+        instr: list[str] = inst_lst[ip]
+
+        if len(instr) == 2:
+            current_instruction.update({"instruction" : instr[0], "arg1" : instr[1], "arg2" : None})
+        elif len(instr) == 3:
+            if instr[2].lstrip("-").isdigit():
+                current_instruction.update({"instruction" : instr[0], "arg1" : instr[1], "arg2" : int(instr[2])})
+            else:
+                current_instruction.update({"instruction" : instr[0], "arg1" : instr[1], "arg2" : instr[2]})
+        else:
+            raise IndexError("There are no instructions in the instruction list")
+
+        return None
+    
+    def map_registers(inst_lst: list[str]) -> None:
+        char_list: list[str] = [chr(_) for _ in range(ord("a"), ord("z") + 1)]
+        
+        for i in range(len(inst_lst)):
+            load_instruction(inst_lst = inst_lst, ip = i)
+
+            if current_instruction["arg1"] in char_list and current_instruction["arg1"] not in registers.keys():
+                registers.update({current_instruction["arg1"] : None})
+            elif current_instruction["arg2"] in char_list and current_instruction["arg2"] not in registers.keys():
+                registers.update({current_instruction["arg2"] : None})
+            else:
+                pass
+        
+        return None
+    
+    def jump_test(x):
+        if x.isdigit():
+            return x
+        else:
+            return registers[x]
+
+    tokenizer(code_list)
+    map_registers(instructions)
+    
+    while instruction_pointer >= 0 and instruction_pointer < len(code_list):
+        load_instruction(inst_lst = instructions, ip = instruction_pointer)
+
+        if current_instruction["instruction"] == "mov":
+            if isinstance(current_instruction["arg2"], int):
+                registers[current_instruction["arg1"]] = current_instruction["arg2"]
+            elif isinstance(current_instruction["arg2"], str):
+                registers[current_instruction["arg1"]] = registers[current_instruction["arg2"]]
+        
+        elif current_instruction["instruction"] == "inc":
+            registers[current_instruction["arg1"]] += 1
+
+        elif current_instruction["instruction"] == "dec":
+            registers[current_instruction["arg1"]] -= 1
+
+        elif current_instruction["instruction"] == "jnz":
+            if jump_test(current_instruction["arg1"]) != 0 and isinstance(current_instruction["arg2"], int):
+                instruction_pointer = instruction_pointer + current_instruction["arg2"]
+                continue
+
+            elif jump_test(current_instruction["arg1"]) != 0 and isinstance(current_instruction["arg2"], str):
+                instruction_pointer = instruction_pointer + registers[current_instruction["arg2"]]
+                continue
+
+            elif jump_test(current_instruction["arg1"]) == 0:
+                pass
+
+        instruction_pointer += 1
+
+    for key in registers.keys():
+        if registers[key] == None:
+            registers_to_pop.append(key)
+    
+    for i in range(len(registers_to_pop)):
+        registers.pop(registers_to_pop[i])
+    
+    return registers
+
+###################################################################################################  Kata end  #####################################################################################################
+
+
+
+
+
+
+###################################################################################################  Esolang Interpreters #7  #####################################################################################################
+                                                                                                  #   Assembler - 2 kyu   #
+
+"""
+We want to create an interpreter of assembler which will support the following instructions:
+
+mov x, y - copy y (either an integer or the value of a register) into register x.
+inc x - increase the content of register x by one.
+dec x - decrease the content of register x by one.
+add x, y - add the content of the register x with y (either an integer or the value of a register) and stores the result in x (i.e. register[x] += y).
+sub x, y - subtract y (either an integer or the value of a register) from the register x and stores the result in x (i.e. register[x] -= y).
+mul x, y - same with multiply (i.e. register[x] *= y).
+div x, y - same with integer division (i.e. register[x] /= y).
+label: - define a label position (label = identifier + ":", an identifier being a string that does not match any other command). Jump commands and call are aimed to these labels positions in the program.
+jmp lbl - jumps to the label lbl.
+cmp x, y - compares x (either an integer or the value of a register) and y (either an integer or the value of a register). The result is used in the conditional jumps (jne, je, jge, jg, jle and jl)
+jne lbl - jump to the label lbl if the values of the previous cmp command were not equal.
+je lbl - jump to the label lbl if the values of the previous cmp command were equal.
+jge lbl - jump to the label lbl if x was greater or equal than y in the previous cmp command.
+jg lbl - jump to the label lbl if x was greater than y in the previous cmp command.
+jle lbl - jump to the label lbl if x was less or equal than y in the previous cmp command.
+jl lbl - jump to the label lbl if x was less than y in the previous cmp command.
+call lbl - call to the subroutine identified by lbl. When a ret is found in a subroutine, the instruction pointer should return to the instruction next to this call command.
+ret - when a ret is found in a subroutine, the instruction pointer should return to the instruction that called the current function.
+msg 'Register: ', x - this instruction stores the output of the program. It may contain text strings (delimited by single quotes) and registers. The number of arguments isn't limited and will vary, depending on the program.
+end - this instruction indicates that the program ends correctly, so the stored output is returned (if the program terminates without this instruction it should return the default output: see below).
+; comment - comments should not be taken in consideration during the execution of the program.
+
+Output format:
+The normal output format is a string (returned with the end command). For Scala and Rust programming languages it should be incapsulated into Option.
+
+If the program does finish itself without using an end instruction, the default return value is:
+
+-1 (as an integer)
+"""
+
+#----- Define classes -----#
+class Token:
+    def __init__(self, type: str = None, value: str = None) -> None:
+        self.type: str = type
+        self.value: str = value
+
+    def __str__(self) -> str:
+        return f"Token(type = {self.type}, value = {self.value})"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+    
+class Instruction:
+
+    def __init__(self, opcode: str, args: list[str | int | float]):
+        self.opcode = opcode
+        self.args = args
+
+    def __str__(self) -> None:
+        return f"Instruction(opcode = {self.opcode}, args = {self.args})"
+    
+    def __repr__(self) -> None:
+        return self.__str__()
+
+#----- Define sub-functions -----#
+def lexer(instructions: list[str], instruction_set: list[str]) -> list[Token]:
+    token_lst: list[Token] = []
+
+
+    def operand_classifier(operand: str) -> Token:
+        if operand.isdigit():
+            return Token(type = "INT", value = operand)
+                                
+        elif operand.find(".") != -1:
+            return Token(type = "FLOAT", value = operand)
+                                
+        else:
+            return Token(type = "IDENT", value = operand)
+    
+
+    for i in range(len(instructions)):
+        if not instructions[i]:
+                continue
+        
+        instruction: str = instructions[i].strip()
+
+        if  instruction.startswith(";"):
+            continue
+
+        elif instruction.find(";") != -1:
+            instruction = instruction.split(";", 1)[0]
+            
+        if  instruction.endswith(":"):
+            label_end: int =  instruction.find(":")
+                
+            token_lst.append(Token(type = "LABEL", value =  instruction[0 : label_end]))
+        
+        elif instruction == "end" or  instruction == "ret":
+            token_lst.append(Token(type = "OPCODE", value =  instruction))
+
+        else:
+            opcode: str = instruction.split(" ", 1)[0]
+
+            if opcode in instruction_set and opcode not in [";", ":", "end", "ret"]:
+                operands: str = instruction.split(" ", 1)[1].strip()
+
+                if opcode == "msg" and "," in operands:
+                    token_lst.append(Token(type = "OPCODE", value = "msg"))
+                    operand_lst: list[str] = []
+                    char_pointer: int = 0
+                    
+                    while char_pointer < len(operands):
+                        
+                        if operands[char_pointer] == "'" or operands[char_pointer] == '"':
+                            string_end: str = operands[char_pointer]
+                            sub_char_p: int = char_pointer + 1
+                            message: str = ""
+                            
+                            while sub_char_p < len(operands) and operands[sub_char_p] != string_end:
+                                message += operands[sub_char_p]
+                                
+                                sub_char_p += 1
+
+                            operand_lst.append("'" + message + "'")
+                            char_pointer = sub_char_p
+                        
+                        else:
+                            string_marker: set = {"'", '"'}
+                            sub_char_p: int = char_pointer
+                            sub_string: str = ""
+
+                            while sub_char_p < len(operands) and operands[sub_char_p] not in string_marker:
+                                sub_string += operands[sub_char_p]
+
+                                sub_char_p += 1
+
+                            operand_lst.append(sub_string)
+                            char_pointer = sub_char_p -1
+
+                        char_pointer += 1
+                    
+                    for operand in operand_lst:
+                        if operand.startswith("'"):
+                            token_lst.append(Token(type = "MESSAGE", value = operand))
+                        
+                        else:
+                            token_lst.append(operand_classifier(operand = operand.replace(",", "").strip()))
+                        
+                elif opcode == "msg" and "," not in operands:
+                    token_lst.append(Token(type = "OPCODE", value = "msg"))
+                    
+                    if operands.startswith("'") or operands.startswith('"'):
+                        message_start: str = operands[0]
+                    
+                        token_lst.append(Token(type = "MESSAGE", value = "'" + operands.strip(message_start).strip() + "'"))
+
+                    else:
+                        token_lst.append(operand_classifier(operand = operands.strip()))
+
+                else:
+                    token_lst.append(Token(type = "OPCODE", value = opcode))
+                    operands = operands.replace(" ", "")
+
+                    if "," in operands:
+                        operand_lst = operands.split(",")
+                        
+                        for e in range(len(operand_lst)):
+                            token_lst.append(operand_classifier(operand = operand_lst[e]))
+
+                    else:
+                        token_lst.append(operand_classifier(operand = operands))
+
+            elif opcode not in instruction_set:
+                raise ValueError(f"The given opcode {opcode} is not part of the valid instruction set.")
+
+    return token_lst
+
+def parser(token_list: list[Token]) -> tuple[list[Instruction], dict[str, int]]:
+    token_lst: list[Token] = token_list.copy()
+    instruction_list: list[Instruction] = []
+    jump_table: dict[str, int] = {}
+    
+    list_pointer: int = 0
+    while list_pointer < len(token_lst):
+        current_opcode: str = ""
+        
+        if token_lst[list_pointer].type in ("OPCODE", "LABEL"):
+            if token_lst[list_pointer].type == "OPCODE":
+                current_opcode = token_lst[list_pointer].value
+            
+            elif token_lst[list_pointer].type == "LABEL":
+                jump_table[token_lst[list_pointer].value] = len(instruction_list)
+                list_pointer += 1
+                continue
+            
+            list_pointer += 1
+            
+            current_args: list[str | int | float] = []
+            
+            while list_pointer < len(token_lst) and token_lst[list_pointer].type not in ("OPCODE", "LABEL"):
+        
+                if token_lst[list_pointer].type == "INT":
+                    current_args.append(int(token_lst[list_pointer].value))
+                    list_pointer += 1
+                        
+                    
+                elif token_lst[list_pointer].type == "FLOAT":
+                    current_args.append(float(token_lst[list_pointer].value))
+                    list_pointer += 1
+                        
+
+                elif token_lst[list_pointer].type == "IDENT":
+                    current_args.append(token_lst[list_pointer].value)
+                    list_pointer += 1
+                
+                elif token_lst[list_pointer].type == "MESSAGE":
+                    current_args.append("'" + token_lst[list_pointer].value + "'")
+                    list_pointer += 1
+                
+                else:
+                    break
+            
+            instruction_list.append(Instruction(opcode = current_opcode, args = current_args))
+
+    return instruction_list, jump_table
+
+def register_mapper(instruction_list: Instruction, reg_opcodes: set[str]) -> dict[str, int]:
+    instr_lst: list[Instruction] = instruction_list.copy()
+    register_table: dict[str, int] = {}
+
+    for i in range(len(instr_lst)):
+        if instr_lst[i].opcode in reg_opcodes:
+            
+            for arg in instr_lst[i].args:
+                if isinstance(arg, (str)):
+                    register_table[arg] = 0
+
+    return register_table
+
+def syntax_analyzer(instruction_lst: list[Instruction], jump_tbl: dict[str, int], register_tbl: dict[str, int]) -> list[str]:
+    error_list: list[str] = []
+
+    for i, instruction in enumerate(instruction_lst):
+        if instruction.opcode in ("mov", "add", "sub", "mul", "div"):
+            if len(instruction.args) < 2:
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects exactly 2 arguments, less was given.")
+            
+            elif len(instruction.args) > 2:
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects exactly 2 arguments, more was given.")
+
+            if not isinstance(instruction.args[0], (str)):
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects a register name as a first argument, none str type was given.")
+
+            elif isinstance(instruction.args[0], (str)) and instruction.args[0] not in register_tbl.keys():
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects a valid register name as a first argument, the given name is not part of the mapped registers.")
+            
+            if isinstance(instruction.args[1], (str)) and instruction.args[1] not in register_tbl.keys():
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects an int, float or a valid register name as the second argument, the given name is not part of the mapped registers.")
+
+        elif instruction.opcode in ("inc", "dec"):
+            if len(instruction.args) < 1:
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects exactly 1 argument, less was given.")
+            
+            elif len(instruction.args) > 1:
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects exactly 1 argument, more was given.")
+
+            if not isinstance(instruction.args[0], (str)):
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects a register name as an argument, none str type was given.")
+
+            elif isinstance(instruction.args[0], (str)) and instruction.args[0] not in register_tbl.keys():
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects a valid register name as an argument, the given name is not part of the mapped registers.")
+
+        elif instruction.opcode in ("jmp", "jne", "je", "jge", "jg", "jle", "jl", "call"):
+            if len(instruction.args) < 1:
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects exactly 1 argument, less was given.")
+            
+            elif len(instruction.args) > 1:
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects exactly 1 argument, more was given.")
+
+            if not isinstance(instruction.args[0], (str)):
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects a label of type str as an argument, none str type was given.")
+
+            elif isinstance(instruction.args[0], (str)) and instruction.args[0] not in jump_tbl.keys():
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects a valid label argument, the given label is not part of the mapped labels.")
+            
+        elif instruction.opcode == "cmp":
+            if len(instruction.args) < 2:
+                error_list.append(f"Instruction {i}: 'cmp' expects exactly 2 arguments, less was given.")
+            
+            elif len(instruction.args) > 2:
+                error_list.append(f"Instruction {i}: 'cmp' expects exactly 2 arguments, more was given.")
+
+            elif isinstance(instruction.args[0], (str)) and instruction.args[0] not in register_tbl.keys():
+                error_list.append(f"Instruction {i}: 'cmp' expects an int, float or a valid register name as a first argument, the given name is not part of the mapped registers.")
+            
+            if isinstance(instruction.args[1], (str)) and instruction.args[1] not in register_tbl.keys():
+                error_list.append(f"Instruction {i}: 'cmp' expects an int, float or a valid register name as the second argument, the given name is not part of the mapped registers.")
+
+        elif instruction.opcode == "msg":
+            for e, arg in enumerate(instruction.args):
+                if not isinstance(arg, (str)):
+                    error_list.append(f"Instruction {i}: {instruction.opcode} expects a character strings or valid register names arguments, argument {e} is not of type str.")
+
+                elif isinstance(arg, (str)) :
+                    if not (arg.startswith("'") and arg.endswith("'")) and arg not in register_tbl.keys():
+                        error_list.append(f"Instruction {i}: {instruction.opcode} argument {e} is neither a valid register nor a string literal.")
+
+        elif instruction.opcode in ("ret", "end"):
+            if len(instruction.args) != 0:
+                error_list.append(f"Instruction {i}: {instruction.opcode} expects no argument, but some was given.")
+
+    return error_list
+
+def code_executor(instruction_lst: list[Instruction], jump_tbl: dict[str, int], register_tbl: dict[str, int]) -> str | int:
+    output_str: str = ""
+    call_stack: list[int] = []
+    comp_results: dict[str, bool] = {
+        "jne" : False,
+        "je" : False,
+        "jge" : False,
+        "jg" : False,
+        "jle" : False, 
+        "jl" : False
+    }
+    ip: int = 0 #instruction pointer
+
+    def reset_comp() -> None:
+        for key in comp_results:
+            comp_results[key] = False
+
+    while ip < len(instruction_lst) and ip >= 0:
+        if instruction_lst[ip].opcode == "mov":
+            
+            if isinstance(instruction_lst[ip].args[1], (int, float)):
+                register_tbl[instruction_lst[ip].args[0]] = instruction_lst[ip].args[1]
+            
+            else:
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[1])
+
+        elif instruction_lst[ip].opcode == "inc":
+            register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) + 1
+
+        elif instruction_lst[ip].opcode == "dec":
+            register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) - 1
+
+        elif instruction_lst[ip].opcode == "add":
+            
+            if isinstance(instruction_lst[ip].args[1], (int, float)):
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) + instruction_lst[ip].args[1]
+            
+            else:
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) + register_tbl.get(instruction_lst[ip].args[1])
+
+        elif instruction_lst[ip].opcode == "sub":
+            
+            if isinstance(instruction_lst[ip].args[1], (int, float)):
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) - instruction_lst[ip].args[1]
+            
+            else:
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) - register_tbl.get(instruction_lst[ip].args[1])
+
+        elif instruction_lst[ip].opcode == "mul":
+            
+            if isinstance(instruction_lst[ip].args[1], (int, float)):
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) * instruction_lst[ip].args[1]
+            
+            else:
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) * register_tbl.get(instruction_lst[ip].args[1])
+
+        elif instruction_lst[ip].opcode == "div":
+            
+            if isinstance(instruction_lst[ip].args[1], (int, float)) and instruction_lst[ip].args[1] != 0:
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) // instruction_lst[ip].args[1]
+            
+            elif isinstance(instruction_lst[ip].args[1], (str)) and register_tbl.get(instruction_lst[ip].args[1]) != 0:
+                register_tbl[instruction_lst[ip].args[0]] = register_tbl.get(instruction_lst[ip].args[0]) // register_tbl.get(instruction_lst[ip].args[1])
+            
+            else:
+                print("Division by 0 is not comprehensible.")
+                return -1
+
+        elif instruction_lst[ip].opcode == "cmp":
+            reset_comp()
+            arg1: int | float = 0
+            arg2: int | float = 0
+            
+            if isinstance(instruction_lst[ip].args[0], (int, float)) and isinstance(instruction_lst[ip].args[1], (int, float)):
+                arg1 = instruction_lst[ip].args[0]
+                arg2 = instruction_lst[ip].args[1]
+
+            elif isinstance(instruction_lst[ip].args[0], (str)) and isinstance(instruction_lst[ip].args[1], (int, float)):
+                arg1 = register_tbl.get(instruction_lst[ip].args[0])
+                arg2 = instruction_lst[ip].args[1]
+
+            elif isinstance(instruction_lst[ip].args[0], (int, float)) and isinstance(instruction_lst[ip].args[1], (str)):
+                arg1 = instruction_lst[ip].args[0]
+                arg2 = register_tbl.get(instruction_lst[ip].args[1])
+            
+            elif isinstance(instruction_lst[ip].args[0], (str)) and isinstance(instruction_lst[ip].args[1], (str)):
+                arg1 = register_tbl.get(instruction_lst[ip].args[0])
+                arg2 = register_tbl.get(instruction_lst[ip].args[1])
+
+            if arg1 != arg2:
+                comp_results["jne"] = True
+
+            if arg1 > arg2:
+                    comp_results["jg"] = True
+            
+            if arg1 < arg2:
+                    comp_results["jl"] = True
+
+            if arg1 == arg2:
+                comp_results["je"] = True
+
+            if arg1 >= arg2:
+                comp_results["jge"] = True
+            
+            if arg1 <= arg2:
+                comp_results["jle"] = True 
+               
+            
+        elif instruction_lst[ip].opcode == "jmp":
+            ip = jump_tbl.get(instruction_lst[ip].args[0])
+            continue
+
+        elif instruction_lst[ip].opcode in {"jne", "je", "jge", "jg", "jle", "jl"}:
+            if comp_results.get(instruction_lst[ip].opcode) == True:
+                ip = jump_tbl.get(instruction_lst[ip].args[0])
+                
+                continue
+            else:
+                ip += 1
+                continue
+
+        elif instruction_lst[ip].opcode == "call":
+            call_stack.append(ip)
+            ip = jump_tbl.get(instruction_lst[ip].args[0])
+            continue
+
+        elif instruction_lst[ip].opcode == "ret":
+            if len(call_stack) > 0:
+                ip = call_stack.pop() + 1
+                continue
+
+            else:
+                return -1
+            
+        elif instruction_lst[ip].opcode == "msg":
+            for arg in instruction_lst[ip].args:
+                if isinstance(arg, (str)) and arg.startswith("'"):
+                    output_arg: str = arg.strip("'")
+                    output_str += output_arg
+                    
+                elif isinstance(arg, (str)):
+                    if isinstance(register_tbl.get(arg), (float)) and register_tbl.get(arg).is_integer():
+                        output_str += str(int(register_tbl.get(arg)))
+                    else:
+                        output_str += str(register_tbl.get(arg))
+                    
+        elif instruction_lst[ip].opcode == "end":
+            return output_str.strip()
+        
+        else:
+            break
+        
+        ip += 1
+
+    return -1
+        
+
+
+    
+#----- Define the main interpreter class -----#
+class Interpreter:
+    INSTRUCTION_SET: list[str] = ["mov", "inc", "dec", "add", "sub", "mul", "div", ":", "jmp",
+                                 "cmp", "jne", "je", "jge", "jg", "jle", "jl", "call", "ret", 
+                                 "msg", ";", "end"]
+    REG_OPS: list[str] = ["mov", "inc", "dec", "add", "sub", "mul", "div"]
+    
+    def __init__(self, code) -> None:
+        self.code: str = code
+        self.line_pointer: int = 0
+        self.instruction_set: list[str] = self.INSTRUCTION_SET
+        self.register_opcodes: set[str] = self.REG_OPS
+        self.preprocessed_code = self.code.split("\n")
+        self.token_list: list[Token] = []
+        self.instruction_list: list[Instruction] = []
+        self.jump_table: dict[str, int] = {}
+        self.register_table: dict[str, int | float] = {}
+        self.error_list: list[str] = []
+        self.output_stream: str | int = ""
+        
+        
+    def __str__(self) -> str:
+        return f"Program:\n< {len(self.preprocessed_code)} lines,\n{len(self.token_list)} tokens,\n{len(self.instruction_list)} instructions,\n{len(self.register_table)} registers >"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+    
+    
+    def lex(self) -> None:
+        self.token_list = lexer(instructions = self.preprocessed_code, instruction_set = self.instruction_set)
+
+    def parse(self) -> None:
+        self.instruction_list, self.jump_table = parser(token_list = self.token_list)
+
+    def map_registers(self) -> None:
+        self.register_table = register_mapper(instruction_list = self.instruction_list, reg_opcodes = self.register_opcodes)
+
+    def analyze_syntax(self) -> None:
+        self.error_list = syntax_analyzer(instruction_lst = self.instruction_list, jump_tbl = self.jump_table, register_tbl = self.register_table)
+
+    def execute_code(self) -> None:
+        self.output_stream = code_executor(instruction_lst = self.instruction_list, jump_tbl = self.jump_table, register_tbl = self.register_table)
+
+    def interpret(self) -> None:
+        self.lex()
+        self.parse()
+        self.map_registers()
+        self.analyze_syntax()
+        if len(self.error_list) != 0:
+            raise SyntaxError(f"Syntax errors found in provided code:\n {self.error_list} ")
+        self.execute_code()
+        return self.output_stream
+
+def assembler_interpreter(program):
+    return Interpreter(program).interpret()
+
+###################################################################################################  Kata end  #####################################################################################################
+
+
