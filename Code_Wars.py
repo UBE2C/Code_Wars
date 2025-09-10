@@ -2105,3 +2105,165 @@ def highlight(code: str) -> str:
     return return_string
 
 ###################################################################################################     Esolang Interpreters #8     #####################################################################################################
+
+class Robot:
+    def __init__(self, instructions: str | None = None) -> None:
+        self.instructions: str | None = instructions
+        self.orientation: str = "E"
+        self.previous_x: int = 0
+        self.previous_y: int = 0
+        self.new_x: int = 0
+        self.new_y: int = 0
+        self.path: list[list[str]] = [["*"]]
+
+    def __repr__(self) -> str:
+        return f"A robot which is facing {self.orientation}, and its position is ({self.x_position}, {self.y_position})."
+    
+    def __str__(self) -> str:
+        return self.__repr__()
+    
+    def turn(self, direction: str) -> str:
+        if direction == "L":
+            if self.orientation == "E":
+                self.orientation = "N"
+            
+            elif self.orientation == "S":
+                self.orientation = "E"
+
+            elif self.orientation == "W":
+                self.orientation = "S"
+
+            elif self.orientation == "N":
+                self.orientation = "W"
+
+        if direction == "R":
+            if self.orientation == "E":
+                self.orientation = "S"
+            
+            elif self.orientation == "S":
+                self.orientation = "W"
+
+            elif self.orientation == "W":
+                self.orientation = "N"
+
+            elif self.orientation == "N":
+                self.orientation = "E"
+
+        return f"The robot has turned and now its facing {self.orientation}"
+            
+    def move(self) -> str:
+        if self.orientation == "E":
+            self.new_x += 1
+
+        if self.orientation == "W":
+            self.new_x -= 1
+
+        if self.orientation == "N":
+            self.new_y += 1
+
+        if self.orientation == "S":
+            self.new_y -= 1
+
+        self.trace_path(old_row = self.previous_y, old_col = self.previous_x, new_row = self.new_y, new_col = self.new_x)
+
+        self.previous_x = self.new_x
+        self.previous_y = self.new_y
+    
+        return f"The robot has moved one grid. It's new position is ({self.new_x}, {self.new_y})."
+    
+    def trace_path(self, old_row: int, old_col: int, new_row: int, new_col: int,) -> None:
+        abs_col: int = abs(new_col)
+
+        if old_row < new_row:
+            self.path.append([])
+            for _ in range(abs_col):
+                self.path[0].append(" ")
+            self.path[0].append("*\r\n")
+
+        elif old_row > new_row:
+            self.path.insert(0, [])
+            for _ in range(abs_col):
+                self.path[new_row].append(" ")
+            self.path[new_row].append("*\r\n")
+
+        else:
+            pass
+
+
+        if old_col < new_col:
+                self.path[new_row].append("*")
+
+        elif old_col > new_col:
+            self.path[new_row].insert(0, "*")
+
+        else:
+            pass
+
+
+        
+        
+       
+
+
+
+        
+
+
+
+def trace_path(row: int, col: int) -> None:
+            grid: list[list[str]] = []
+                
+            if col > 0:
+                grid[row].append("*")
+
+            elif col < 0:
+                grid[row].insert(0, "*")
+
+            else:
+                pass
+
+
+            if row > 0 and row not in range(0, len(grid) - 1):
+                grid.insert(0, grid[row - 1])
+
+            elif row < 0 and row not in range(0, len(grid) - 1, -1):
+                grid.append(grid[row - 1])
+
+            else:
+                pass
+
+            print(grid)
+
+def trace_path(self, row: int, col: int) -> None:
+        abs_col: int = abs(col)
+
+        if row > 0 and row not in range(0, len(self.path) - 1):
+            self.path.insert(0, [])
+
+            if col > 0:
+                for _ in range(abs_col):
+                    self.path[row].append(" ")
+
+                self.path[row].append("*")
+
+        elif row < 0 and row not in range(0, len(self.path) - 1, -1):
+            self.path.append([])
+
+            if col < 0:
+                for _ in range(abs_col):
+                    self.path[row].insert(0, " ")
+
+                self.path[row].insert(0, "*")
+
+        else:
+            pass
+
+        if col > 0:
+                
+                self.path[row].append("*")
+
+        elif col < 0:
+            self.path[row].insert(0, "*")
+
+        else:
+            pass
