@@ -2113,24 +2113,28 @@ def highlight(code: str) -> str:
 
 ###################################################################################################     Esolang Interpreters #9     #####################################################################################################
                                                                                                   #   RoboScript series 2 - 5 kyu   #
-
+import copy
 
 
 class Robot:
     def __init__(self, instructions: str | None = None) -> None:
         self.instructions: str | None = instructions
         self.orientation: str = "E"
-        self.previous_x: int = 0
-        self.previous_y: int = 0
-        self.new_x: int = 0
-        self.new_y: int = 0
-        self.path: list[list[str]] = [["*"]]
+        self.x_position: int = 0
+        self.y_position: int = 0
+        self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []}
+        self.update_path(x = self.x_position, y = self.y_position)
+        self.path_map: list[list[str]] = [["*"]]
 
     def __repr__(self) -> str:
         return f"A robot which is facing {self.orientation}, and its position is ({self.x_position}, {self.y_position})."
     
     def __str__(self) -> str:
         return self.__repr__()
+    
+    def update_path(self, x: int, y: int) -> None:
+        self.path["x_coords"].append(self.x_position)
+        self.path["y_coords"].append(self.y_position)
     
     def turn(self, direction: str) -> str:
         if direction == "L":
@@ -2163,51 +2167,44 @@ class Robot:
             
     def move(self) -> str:
         if self.orientation == "E":
-            self.new_x += 1
+            self.x_position += 1
 
         if self.orientation == "W":
-            self.new_x -= 1
+            self.x_position -= 1
 
         if self.orientation == "N":
-            self.new_y += 1
+            self.y_position += 1
 
         if self.orientation == "S":
-            self.new_y -= 1
+            self.y_position -= 1
 
-        self.trace_path(old_row = self.previous_y, old_col = self.previous_x, new_row = self.new_y, new_col = self.new_x)
-
-        self.previous_x = self.new_x
-        self.previous_y = self.new_y
+        self.update_path(x = self.x_position, y = self.y_position)
     
-        return f"The robot has moved one grid. It's new position is ({self.new_x}, {self.new_y})."
+        return f"The robot has moved one grid. It's new position is ({self.x_position}, {self.y_position})."
     
-    def trace_path(self, old_row: int, old_col: int, new_row: int, new_col: int,) -> None:
-        abs_col: int = abs(new_col)
+    def map_path(self) -> None:
+        wp: dict[str, list[int]] = copy.deepcopy(self.path)
+        grid: list[list[str]] = [[" " for _ in range(len(wp["x_coords"]))] for _ in range(len(wp["y_coords"]))]
+        
+        #Get min values
+        x_min: int = min(wp["x_coords"])
+        y_min: int = min(wp["y_coords"])
 
-        if old_row < new_row:
-            self.path.append([])
-            for _ in range(abs_col):
-                self.path[0].append(" ")
-            self.path[0].append("*\r\n")
+        #Re-center coordinates
+        if x_min < 0:
+            for i in range(len(wp["x_coords"])):
+                wp["x_coords"][i] = wp["x_coords"][i] + abs(x_min)
 
-        elif old_row > new_row:
-            self.path.insert(0, [])
-            for _ in range(abs_col):
-                self.path[new_row].append(" ")
-            self.path[new_row].append("*\r\n")
+        if y_min < 0:
+            for i in range(len(wp["y_coords"])):
+                wp["y_coords"][i] = wp["y_coords"][i] + abs(y_min)
 
-        else:
-            pass
+        for row in wp["y_coords"]:
+            for col in wp["x_coords"]:
+                grid[row][col] = "*"
 
+        self.path_map = grid
 
-        if old_col < new_col:
-                self.path[new_row].append("*")
-
-        elif old_col > new_col:
-            self.path[new_row].insert(0, "*")
-
-        else:
-            pass
 
 
         
@@ -2274,6 +2271,36 @@ def trace_path(self, row: int, col: int) -> None:
 
         elif col < 0:
             self.path[row].insert(0, "*")
+
+        else:
+            pass
+
+
+
+def trace_path(self, old_row: int, old_col: int, new_row: int, new_col: int,) -> None:
+        abs_col: int = abs(new_col)
+
+        if old_row < new_row:
+            self.path.append([])
+            for _ in range(abs_col):
+                self.path[0].append(" ")
+            self.path[0].append("*\r\n")
+
+        elif old_row > new_row:
+            self.path.insert(0, [])
+            for _ in range(abs_col):
+                self.path[new_row].append(" ")
+            self.path[new_row].append("*\r\n")
+
+        else:
+            pass
+
+
+        if old_col < new_col:
+                self.path[new_row].append("*")
+
+        elif old_col > new_col:
+            self.path[new_row].insert(0, "*")
 
         else:
             pass
