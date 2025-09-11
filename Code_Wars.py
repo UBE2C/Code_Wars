@@ -2117,14 +2117,16 @@ import copy
 
 
 class Robot:
-    def __init__(self, instructions: str | None = None) -> None:
-        self.instructions: str | None = instructions
+    def __init__(self, instructions: str) -> None:
+        self.instructions: str = instructions
         self.orientation: str = "E"
         self.x_position: int = 0
         self.y_position: int = 0
-        self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []}
+        self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
+        self.path_lst: list[list[int]] = [] #to store the x/y coord pairs
+        self.direction_lst: list[str] = [] #to store the direction the movement happened
         self.update_path(x = self.x_position, y = self.y_position)
-        self.path_map: list[list[str]] = [["*"]]
+        self.path_map: str = ""
 
     def __repr__(self) -> str:
         return f"A robot which is facing {self.orientation}, and its position is ({self.x_position}, {self.y_position})."
@@ -2135,6 +2137,9 @@ class Robot:
     def update_path(self, x: int, y: int) -> None:
         self.path["x_coords"].append(self.x_position)
         self.path["y_coords"].append(self.y_position)
+
+        self.path_lst.append([x, y])
+        self.direction_lst.append(self.orientation)
     
     def turn(self, direction: str) -> str:
         if direction == "L":
@@ -2182,125 +2187,139 @@ class Robot:
     
         return f"The robot has moved one grid. It's new position is ({self.x_position}, {self.y_position})."
     
+
     def map_path(self) -> None:
         wp: dict[str, list[int]] = copy.deepcopy(self.path)
-        grid: list[list[str]] = [[" " for _ in range(len(wp["x_coords"]))] for _ in range(len(wp["y_coords"]))]
+        pl: list[list[int]] = copy.deepcopy(self.path_lst)
         
-        #Get min values
+        #Get min/max values
         x_min: int = min(wp["x_coords"])
         y_min: int = min(wp["y_coords"])
 
-        #Re-center coordinates
-        if x_min < 0:
-            for i in range(len(wp["x_coords"])):
-                wp["x_coords"][i] = wp["x_coords"][i] + abs(x_min)
+        x_max: int = max(wp["x_coords"])
+        y_max: int = max(wp["y_coords"])
 
-        if y_min < 0:
-            for i in range(len(wp["y_coords"])):
-                wp["y_coords"][i] = wp["y_coords"][i] + abs(y_min)
+        #Create the grid
+        ncol: int = x_max - x_min + 1 #the plus 1 is to be inclusive
+        nrow: int = y_max - y_min + 1
 
-        for row in wp["y_coords"]:
-            for col in wp["x_coords"]:
-                grid[row][col] = "*"
-
-        self.path_map = grid
-
-
-
+        if ncol > nrow:
+            size: int = ncol
         
+        else:
+            size: int = nrow
+
+        print(size)
+        
+        if size % 2 != 0:
+            size = size + 1
+        
+        print(size)
+
+        grid: list[list[str]] = [[" " for _ in range(size * 2)] for _ in range(size * 2)]
+
+        #Correct for the positioning by flipping the y-axis (smallest y in bottom, largest in top) and re-centering along the grid
+        for pair in pl:
+            pair[0] = pair[0] - x_min
+            pair[1] = y_max - pair[1]
+
+            pair[0] = pair[0] + (size // 2)
+            pair[1] = pair[1] + (size // 2)
+
+            print(pair)
+        
+        #Fill the grid using the coordinates the robot touched
+        for coord in pl:
+            grid[coord[1]][coord[0]] = "*"
+
+        #Convert the grid into a single list of strings (every row is a single string)
+        path_lst: list[str] = ["".join(_) for _ in grid]
+        
+        #Convert the list into a unified string
+        path_string: str = "\r\n".join(path_lst)
+
+        self.path_map = path_string
+
+    #NOTE: have to implement numbers for execution shortcut with a while loop
+    def execute(self) -> str:
+        commands: str = self.instructions
+        
+        for i, command in enumerate(commands):
+            if command == "F":
+                self.move()
+
+            if command == "L" or command == "R" and not commands[i + 1].isnumeric():
+                self.turn(direction = command)
+
+            if command.isnumeric() and commands[i - 1] == "F":
+                for _ in range(int(command) - 1):
+                    self.move()
+
+            if command.isnumeric() and (commands[i - 1] == "L" or commands[i - 1] == "R"):
+                for _ in range(int(command) - 1):
+                    self.turn(direction = commands[i - 1])
+
+        self.map_path()
+
+        print(self.path_map)
+        return self.path_map
+
+ 
         
        
 
 
 
         
+for i, command in enumerate(commands):
+            if command == "F" and commands[i + 1].isnumeric():
+                for _ in range(int(commands[i]) + 1):
+                    self.move()
 
+            if command == "F" and not commands[i + 1].isnumeric():
+                self.move()
 
-
-def trace_path(row: int, col: int) -> None:
-            grid: list[list[str]] = []
-                
-            if col > 0:
-                grid[row].append("*")
-
-            elif col < 0:
-                grid[row].insert(0, "*")
-
-            else:
+            if command.isnumeric():
                 pass
 
+            if (command == "L" or command == "R") and commands[i + 1].isnumeric():
+                for _ in range(int(commands[i]) + 1):
+                    self.turn(direction = command)
 
-            if row > 0 and row not in range(0, len(grid) - 1):
-                grid.insert(0, grid[row - 1])
+            if command == "L" or command == "R" and not commands[i + 1].isnumeric():
+                self.turn(direction = command)
 
-            elif row < 0 and row not in range(0, len(grid) - 1, -1):
-                grid.append(grid[row - 1])
+        
+def map_path(self) -> None:
+        wp: dict[str, list[int]] = copy.deepcopy(self.path)
+        pl: list[list[int]] = copy.deepcopy(self.path_lst)
+        
+        #Get min/max values
+        x_min: int = min(wp["x_coords"])
+        y_min: int = min(wp["y_coords"])
 
-            else:
-                pass
+        x_max: int = max(wp["x_coords"])
+        y_max: int = max(wp["y_coords"])
 
-            print(grid)
+        #Create the grid
+        ncol: int = x_max - x_min + 1 #the plus 1 is to be inclusive
+        nrow: int = y_max - y_min + 1
 
-def trace_path(self, row: int, col: int) -> None:
-        abs_col: int = abs(col)
+        grid: list[list[str]] = [[" " for _ in range(ncol)] for _ in range(nrow)]
 
-        if row > 0 and row not in range(0, len(self.path) - 1):
-            self.path.insert(0, [])
+        #Correct for the positioning by flipping the y-axis (smallest y in bottom, largest in top) and re-centering along the x-axis
+        for pair in pl:
+            pair[0] = pair[0] - x_min
+            pair[1] = y_max - pair[1]
 
-            if col > 0:
-                for _ in range(abs_col):
-                    self.path[row].append(" ")
+        #Fill the grid using the coordinates the robot touched
+        for coord in pl:
+            grid[coord[1]][coord[0]] = "*"
 
-                self.path[row].append("*")
+        #Convert the grid into a single list of strings (every row is a single string)
+        path_lst: list[str] = ["".join(_) for _ in grid]
+        
+        #Convert the list into a unified string
+        path_string: str = "\r\n".join(path_lst)
 
-        elif row < 0 and row not in range(0, len(self.path) - 1, -1):
-            self.path.append([])
-
-            if col < 0:
-                for _ in range(abs_col):
-                    self.path[row].insert(0, " ")
-
-                self.path[row].insert(0, "*")
-
-        else:
-            pass
-
-        if col > 0:
-                
-                self.path[row].append("*")
-
-        elif col < 0:
-            self.path[row].insert(0, "*")
-
-        else:
-            pass
-
-
-
-def trace_path(self, old_row: int, old_col: int, new_row: int, new_col: int,) -> None:
-        abs_col: int = abs(new_col)
-
-        if old_row < new_row:
-            self.path.append([])
-            for _ in range(abs_col):
-                self.path[0].append(" ")
-            self.path[0].append("*\r\n")
-
-        elif old_row > new_row:
-            self.path.insert(0, [])
-            for _ in range(abs_col):
-                self.path[new_row].append(" ")
-            self.path[new_row].append("*\r\n")
-
-        else:
-            pass
-
-
-        if old_col < new_col:
-                self.path[new_row].append("*")
-
-        elif old_col > new_col:
-            self.path[new_row].insert(0, "*")
-
-        else:
-            pass
+        self.path_map = path_string
