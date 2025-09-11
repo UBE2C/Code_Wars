@@ -2104,7 +2104,7 @@ def highlight(code: str) -> str:
         
     return return_string
 
-###################################################################################################     Esolang Interpreters #8     #####################################################################################################
+###################################################################################################     Kata end     #####################################################################################################
 
 
 
@@ -2203,108 +2203,6 @@ class Robot:
         ncol: int = x_max - x_min + 1 #the plus 1 is to be inclusive
         nrow: int = y_max - y_min + 1
 
-        if ncol > nrow:
-            size: int = ncol
-        
-        else:
-            size: int = nrow
-
-        print(size)
-        
-        if size % 2 != 0:
-            size = size + 1
-        
-        print(size)
-
-        grid: list[list[str]] = [[" " for _ in range(size * 2)] for _ in range(size * 2)]
-
-        #Correct for the positioning by flipping the y-axis (smallest y in bottom, largest in top) and re-centering along the grid
-        for pair in pl:
-            pair[0] = pair[0] - x_min
-            pair[1] = y_max - pair[1]
-
-            pair[0] = pair[0] + (size // 2)
-            pair[1] = pair[1] + (size // 2)
-
-            print(pair)
-        
-        #Fill the grid using the coordinates the robot touched
-        for coord in pl:
-            grid[coord[1]][coord[0]] = "*"
-
-        #Convert the grid into a single list of strings (every row is a single string)
-        path_lst: list[str] = ["".join(_) for _ in grid]
-        
-        #Convert the list into a unified string
-        path_string: str = "\r\n".join(path_lst)
-
-        self.path_map = path_string
-
-    #NOTE: have to implement numbers for execution shortcut with a while loop
-    def execute(self) -> str:
-        commands: str = self.instructions
-        
-        for i, command in enumerate(commands):
-            if command == "F":
-                self.move()
-
-            if command == "L" or command == "R" and not commands[i + 1].isnumeric():
-                self.turn(direction = command)
-
-            if command.isnumeric() and commands[i - 1] == "F":
-                for _ in range(int(command) - 1):
-                    self.move()
-
-            if command.isnumeric() and (commands[i - 1] == "L" or commands[i - 1] == "R"):
-                for _ in range(int(command) - 1):
-                    self.turn(direction = commands[i - 1])
-
-        self.map_path()
-
-        print(self.path_map)
-        return self.path_map
-
- 
-        
-       
-
-
-
-        
-for i, command in enumerate(commands):
-            if command == "F" and commands[i + 1].isnumeric():
-                for _ in range(int(commands[i]) + 1):
-                    self.move()
-
-            if command == "F" and not commands[i + 1].isnumeric():
-                self.move()
-
-            if command.isnumeric():
-                pass
-
-            if (command == "L" or command == "R") and commands[i + 1].isnumeric():
-                for _ in range(int(commands[i]) + 1):
-                    self.turn(direction = command)
-
-            if command == "L" or command == "R" and not commands[i + 1].isnumeric():
-                self.turn(direction = command)
-
-        
-def map_path(self) -> None:
-        wp: dict[str, list[int]] = copy.deepcopy(self.path)
-        pl: list[list[int]] = copy.deepcopy(self.path_lst)
-        
-        #Get min/max values
-        x_min: int = min(wp["x_coords"])
-        y_min: int = min(wp["y_coords"])
-
-        x_max: int = max(wp["x_coords"])
-        y_max: int = max(wp["y_coords"])
-
-        #Create the grid
-        ncol: int = x_max - x_min + 1 #the plus 1 is to be inclusive
-        nrow: int = y_max - y_min + 1
-
         grid: list[list[str]] = [[" " for _ in range(ncol)] for _ in range(nrow)]
 
         #Correct for the positioning by flipping the y-axis (smallest y in bottom, largest in top) and re-centering along the x-axis
@@ -2323,3 +2221,53 @@ def map_path(self) -> None:
         path_string: str = "\r\n".join(path_lst)
 
         self.path_map = path_string
+
+
+    def execute(self) -> str:
+        commands: str = self.instructions
+        
+        inst_pointer: int = 0
+        while inst_pointer < len(commands):
+            inst_count: str = ""
+            
+            if commands[inst_pointer] == "F":
+                self.move()
+
+            if commands[inst_pointer] == "L" or commands[inst_pointer] == "R":
+                self.turn(direction = commands[inst_pointer])
+
+            if commands[inst_pointer].isnumeric():
+                sub_pointer: int = inst_pointer
+                print(sub_pointer)
+                
+                while sub_pointer < len(commands) and commands[sub_pointer].isnumeric():
+                    inst_count += commands[sub_pointer]
+                    sub_pointer += 1
+                
+                print(inst_pointer, sub_pointer)
+
+                if commands[inst_pointer - 1] == "F":
+                    for _ in range(int(inst_count) - 1):
+                        self.move()
+
+                if (commands[inst_pointer - 1] == "L" or commands[inst_pointer - 1] == "R"):
+                    for _ in range(int(inst_count) - 1):
+                        self.turn(direction = commands[inst_pointer - 1])
+
+                inst_pointer = sub_pointer - 1
+                print(inst_pointer)
+                
+            inst_pointer += 1
+
+        self.map_path()
+
+        
+        return self.path_map
+
+###################################################################################################     Kata end     #####################################################################################################
+
+        
+       
+
+
+
