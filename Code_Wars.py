@@ -2266,7 +2266,193 @@ class Robot:
 
 ###################################################################################################     Kata end     #####################################################################################################
 
+
+
+
+
+###################################################################################################     Esolang Interpreters #10     #####################################################################################################
+                                                                                                  #   RoboScript series 3 - 4 kyu   #
+import copy
+
+class Robot:
+    def __init__(self, instructions: str) -> None:
+        self.instructions: str = instructions
+        self.orientation: str = "E"
+        self.x_position: int = 0
+        self.y_position: int = 0
+        self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
+        self.path_lst: list[list[int]] = [] #to store the x/y coord pairs
+        self.direction_lst: list[str] = [] #to store the direction the movement happened
+        self.loop_map: dict[int, list[int]] = {}
+        self.update_path(x = self.x_position, y = self.y_position)
+        self.path_map: str = ""
+
+    def __repr__(self) -> str:
+        return f"A robot which is facing {self.orientation}, and its position is ({self.x_position}, {self.y_position})."
+    
+    def __str__(self) -> str:
+        return self.__repr__()
+    
+    def update_path(self, x: int, y: int) -> None:
+        self.path["x_coords"].append(self.x_position)
+        self.path["y_coords"].append(self.y_position)
+
+        self.path_lst.append([x, y])
+        self.direction_lst.append(self.orientation)
+    
+    def turn(self, direction: str) -> str:
+        if direction == "L":
+            if self.orientation == "E":
+                self.orientation = "N"
+            
+            elif self.orientation == "S":
+                self.orientation = "E"
+
+            elif self.orientation == "W":
+                self.orientation = "S"
+
+            elif self.orientation == "N":
+                self.orientation = "W"
+
+        if direction == "R":
+            if self.orientation == "E":
+                self.orientation = "S"
+            
+            elif self.orientation == "S":
+                self.orientation = "W"
+
+            elif self.orientation == "W":
+                self.orientation = "N"
+
+            elif self.orientation == "N":
+                self.orientation = "E"
+
+        return f"The robot has turned and now its facing {self.orientation}"
+            
+    def move(self) -> str:
+        if self.orientation == "E":
+            self.x_position += 1
+
+        if self.orientation == "W":
+            self.x_position -= 1
+
+        if self.orientation == "N":
+            self.y_position += 1
+
+        if self.orientation == "S":
+            self.y_position -= 1
+
+        self.update_path(x = self.x_position, y = self.y_position)
+    
+        return f"The robot has moved one grid. It's new position is ({self.x_position}, {self.y_position})."
+    
+
+    def map_path(self) -> None:
+        wp: dict[str, list[int]] = copy.deepcopy(self.path)
+        pl: list[list[int]] = copy.deepcopy(self.path_lst)
         
+        #Get min/max values
+        x_min: int = min(wp["x_coords"])
+        y_min: int = min(wp["y_coords"])
+
+        x_max: int = max(wp["x_coords"])
+        y_max: int = max(wp["y_coords"])
+
+        #Create the grid
+        ncol: int = x_max - x_min + 1 #the plus 1 is to be inclusive
+        nrow: int = y_max - y_min + 1
+
+        grid: list[list[str]] = [[" " for _ in range(ncol)] for _ in range(nrow)]
+
+        #Correct for the positioning by flipping the y-axis (smallest y in bottom, largest in top) and re-centering along the x-axis
+        for pair in pl:
+            pair[0] = pair[0] - x_min
+            pair[1] = y_max - pair[1]
+
+        #Fill the grid using the coordinates the robot touched
+        for coord in pl:
+            grid[coord[1]][coord[0]] = "*"
+
+        #Convert the grid into a single list of strings (every row is a single string)
+        path_lst: list[str] = ["".join(_) for _ in grid]
+        
+        #Convert the list into a unified string
+        path_string: str = "\r\n".join(path_lst)
+
+        self.path_map = path_string
+
+    def map_loops(self) -> None:
+        code: str = self.instructions
+        stack: list[int] = []
+        loop_map: dict[int, list[int]] = {}
+
+        for i, char in enumerate(code):
+            if char == "(":
+                stack.append(i)
+            
+            if char == ")" and not code[i + 1].isnumeric():
+                loop_start: int = stack.pop()
+                loop_map[loop_start] = [i, 1] #forward mapping for forward jumps
+                loop_map[i] = [loop_start] #reverse mapping for backward jumps
+
+            if char == ")" and code[i + 1].isnumeric():
+                loop_start: int = stack.pop()
+                loop_map[loop_start] = [i, int(code[i + 1])] #forward mapping for forward jumps with repeat numbers 
+                loop_map[i] = [loop_start]
+
+        self.loop_map = loop_map
+
+
+
+    def execute(self) -> str:
+        commands: str = self.instructions
+        
+        if commands.find("(") != -1 or commands.find(")") != -1:
+            pass
+
+
+
+        else:    
+            inst_pointer: int = 0
+            while inst_pointer < len(commands):
+                inst_count: str = ""
+                
+                if commands[inst_pointer] == "F":
+                    self.move()
+
+                if commands[inst_pointer] == "L" or commands[inst_pointer] == "R":
+                    self.turn(direction = commands[inst_pointer])
+
+                if commands[inst_pointer].isnumeric():
+                    sub_pointer: int = inst_pointer
+                    print(sub_pointer)
+                    
+                    while sub_pointer < len(commands) and commands[sub_pointer].isnumeric():
+                        inst_count += commands[sub_pointer]
+                        sub_pointer += 1
+                    
+                    print(inst_pointer, sub_pointer)
+
+                    if commands[inst_pointer - 1] == "F":
+                        for _ in range(int(inst_count) - 1):
+                            self.move()
+
+                    if (commands[inst_pointer - 1] == "L" or commands[inst_pointer - 1] == "R"):
+                        for _ in range(int(inst_count) - 1):
+                            self.turn(direction = commands[inst_pointer - 1])
+
+                    inst_pointer = sub_pointer - 1
+                    print(inst_pointer)
+                    
+                inst_pointer += 1
+
+        self.map_path()
+
+        
+        return self.path_map
+
+###################################################################################################     Kata end     #####################################################################################################
+
        
 
 
