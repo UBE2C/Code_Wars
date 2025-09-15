@@ -2397,8 +2397,15 @@ class Robot:
 
             elif char == ")" and code[i + 1].isnumeric():
                 loop_start: int = stack.pop()
-                #insert a while loop to deal with multi multi digit repeats
-                loop_map[loop_start] = [i, int(code[i + 1])] #forward mapping for forward jumps with repeat numbers 
+
+                repeat_num: str = ""
+                sub_i: int = i + 1
+                
+                while sub_i < len(code) and code[sub_i].isnumeric():
+                    repeat_num += code[sub_i]
+                    sub_i += 1
+
+                loop_map[loop_start] = [i, int(repeat_num)] #forward mapping for forward jumps with repeat numbers 
                 loop_map[i] = [loop_start]
 
         self.loop_map = loop_map
@@ -2407,17 +2414,22 @@ class Robot:
 
     def execute(self) -> str:
         commands: str = self.instructions
-        
+
         self.map_loops()
 
         cp: int = 0
         call_stack: list[list[int]] = []
+        instruction_stack: list[str] = []
         while cp < len(commands):
             inst_count: str = ""
 
             if commands[cp] == "(":
-                call_stack.append([cp, self.loop_map[cp][1]])
+                
+                if self.loop_map[cp][1] != 0:
+                    call_stack.append([cp, self.loop_map[cp][1]])
 
+                else:
+                    cp = self.loop_map[cp][0]
                     
             elif commands[cp] == ")" and len(call_stack) != 0:
                 current_loop_start: int = call_stack[-1][0]
@@ -2431,31 +2443,43 @@ class Robot:
                 else:
                     call_stack.pop()
 
-            elif commands[cp] == "F":
+            elif (cp == len(commands) - 1 and commands[cp] == "F") or (commands[cp] == "F" and not commands[cp + 1].isnumeric()):
                 self.move()
 
-            elif commands[cp] == "L" or commands[cp] == "R":
+            elif (cp == len(commands) - 1 and (commands[cp] == "L" or commands[cp] == "R")) or ((commands[cp] == "L" or commands[cp] == "R") and not commands[cp + 1].isnumeric()):
                 self.turn(direction = commands[cp])
 
-            elif commands[cp].isnumeric():
-                sub_pointer: int = cp
+            elif (commands[cp] == "F" or commands[cp] == "L" or commands[cp] == "R" or commands[cp] == ")") and commands[cp + 1].isnumeric():
+                instruction_stack.append(commands[cp])
                 
-                if commands[cp - 1] == ")":
-                    pass
+            elif commands[cp].isnumeric():
+                if len(instruction_stack) != 0:
+                    instruction: str = instruction_stack.pop()
 
+                else:
+                    instruction: str = ""
+
+                sub_pointer: int = cp
                 while sub_pointer < len(commands) and commands[sub_pointer].isnumeric():
                     inst_count += commands[sub_pointer]
                     sub_pointer += 1
                 
-                if commands[cp - 1] == "F":
-                    for _ in range(int(inst_count) - 1):
+                if instruction == ")":
+                    pass
+
+                elif instruction == "F":
+                    for _ in range(int(inst_count)):
                         self.move()
 
-                elif (commands[cp - 1] == "L" or commands[cp - 1] == "R"):
-                    for _ in range(int(inst_count) - 1):
-                        self.turn(direction = commands[cp - 1])
+                elif (instruction == "L" or instruction == "R"):
+                    for _ in range(int(inst_count)):
+                        self.turn(direction = instruction)
 
+                else:
+                    pass
+                
                 cp = sub_pointer - 1
+                
                 
             cp += 1
         
@@ -2466,62 +2490,3 @@ class Robot:
 
 ###################################################################################################     Kata end     #####################################################################################################
 
-       
-def map_loops(self) -> None:
-        code: str = self.instructions
-        stack: list[int] = []
-        loop_map: dict[int, list[int]] = {}
-
-        for i, char in enumerate(code):
-            if char == "(":
-                stack.append(i)
-            
-            if (i == len(code) - 1 and char == ")") or (char == ")" and not code[i + 1].isnumeric()):
-
-
-            if char == ")" and not code[i + 1].isnumeric():
-                loop_start: int = stack.pop()
-                loop_map[loop_start] = [i, 1] #forward mapping for forward jumps
-                loop_map[i] = [loop_start] #reverse mapping for backward jumps
-
-            if char == ")" and code[i + 1].isnumeric():
-                loop_start: int = stack.pop()
-                loop_map[loop_start] = [i, int(code[i + 1])] #forward mapping for forward jumps with repeat numbers 
-                loop_map[i] = [loop_start]
-
-        self.loop_map = loop_map
-
-
-    
-            inst_pointer: int = 0
-            while inst_pointer < len(commands):
-                inst_count: str = ""
-                
-                if commands[inst_pointer] == "F":
-                    self.move()
-
-                if commands[inst_pointer] == "L" or commands[inst_pointer] == "R":
-                    self.turn(direction = commands[inst_pointer])
-
-                if commands[inst_pointer].isnumeric():
-                    sub_pointer: int = inst_pointer
-                    print(sub_pointer)
-                    
-                    while sub_pointer < len(commands) and commands[sub_pointer].isnumeric():
-                        inst_count += commands[sub_pointer]
-                        sub_pointer += 1
-                    
-                    print(inst_pointer, sub_pointer)
-
-                    if commands[inst_pointer - 1] == "F":
-                        for _ in range(int(inst_count) - 1):
-                            self.move()
-
-                    if (commands[inst_pointer - 1] == "L" or commands[inst_pointer - 1] == "R"):
-                        for _ in range(int(inst_count) - 1):
-                            self.turn(direction = commands[inst_pointer - 1])
-
-                    inst_pointer = sub_pointer - 1
-                    print(inst_pointer)
-                    
-                inst_pointer += 1
