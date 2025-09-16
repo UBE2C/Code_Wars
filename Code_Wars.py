@@ -2490,3 +2490,328 @@ class Robot:
 
 ###################################################################################################     Kata end     #####################################################################################################
 
+
+
+
+
+###################################################################################################     Esolang Interpreters #11     #####################################################################################################
+                                                                                                  #   RoboScript series 4 - 3 kyu   #
+
+class Token:
+    def __init__(self, value: str, type: str, position: list[int]) -> None:
+        self.value: str = value
+        self.type: str = type
+        self.position: list[int] = position
+
+    def __str__(self) -> str:
+        return f"A token with value: {self.value} and type: {self.type}"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+
+class Instruction:
+    def __init__(self, value: str, type: str, repeat: int) -> None:
+        self.value: str = value
+        self.type: str = type
+        self.repeat: int = repeat
+
+    def __str__(self) -> str:
+        return f"An instruction of type: {self.type}, value: {self.value} and repeat: {self.repeat}"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+    
+class Pattern:
+    def __init__(self, identifier: str, value: str, repeat: int) -> None:
+        self.identifier: str = identifier
+        self.value: str = value
+        self.repeat: int = repeat
+
+    def __str__(self) -> str:
+        return f"A pattern with ID: {self.identifier}, value of {self.value} and repeat: {self.repeat}"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+    
+
+class Robot:
+    def __init__(self, code: str) -> None:
+        self.code: str = code
+        self.orientation: str = "E"
+        self.x_position: int = 0
+        self.y_position: int = 0
+        self.token_lst: list[Token] = []
+        self.intsruction_lst: list[Instruction] = []
+        self.pattertns: dict[str, Pattern] = {}
+        self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
+        self.path_lst: list[list[int]] = [] #to store the x/y coord pairs
+        self.direction_lst: list[str] = [] #to store the direction the movement happened
+        self.loop_map: dict[int, int] = {}
+        self.update_path(x = self.x_position, y = self.y_position)
+        self.path_map: str = ""
+
+    def __repr__(self) -> str:
+        return f"A robot which is facing <{self.orientation}>, and its position is <{self.x_position}, {self.y_position}>."
+    
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def map_loops(self) -> None:
+        tokens: list[Token] = self.token_lst
+        stack: list[int] = []
+        loop_map: dict[int, int] = {}
+
+
+        for i, token in enumerate(tokens):
+            if token.type == "loop_start":
+                stack.append(i)
+
+            if token.type == "loop_end":
+                loop_start: int = stack.pop()
+                loop_map[loop_start] = i #forward map
+                loop_map[i] = loop_start #reverse map
+
+        self.loop_map = loop_map
+
+    def tokenizer(self) -> None:
+        code: str = self.code
+
+        cp: int = 0
+        while cp < len(code):
+            if code[cp] == "F" or code[cp] == "R" or code[cp] == "L":
+                self.token_lst.append(Token(value = code[cp], type = "instruction", position = [cp]))
+
+            elif code[cp] == "(":
+                self.token_lst.append(Token(value = code[cp], type = "loop_start", position = [cp]))
+
+            elif code[cp] == ")":
+                self.token_lst.append(Token(value = code[cp], type = "loop_end", position = [cp]))
+
+            elif code[cp] == "p":
+                self.token_lst.append(Token(value = code[cp], type = "pattern_start", position = [cp]))
+
+            elif code[cp].isnumeric():
+                sub_cp: int = cp
+                number: str = ""
+                while sub_cp < len(code) and code[sub_cp].isnumeric():
+                    print(code[sub_cp], code[sub_cp].isnumeric())
+                    number += code[sub_cp]
+                    sub_cp += 1
+
+                if code[cp - 1] == "p":
+                    self.token_lst.append(Token(value = number, type = "identifier", position = [cp, sub_cp]))
+
+                else:   
+                    self.token_lst.append(Token(value = number, type = "repeat", position = [cp, sub_cp]))
+
+                cp = sub_cp - 1
+
+            elif code[cp] == "q":
+                self.token_lst.append(Token(value = code[cp], type = "pattern_end", position = [cp]))
+
+            cp += 1
+
+
+    def parser(self) -> None:
+        tokens: list[Token] = self.token_lst
+        self.map_loops()
+
+        lp: int = 0
+        while lp < len(tokens):
+            token: Token = tokens[lp]
+            
+            if lp == len(tokens) - 1:
+                next_token: Token = tokens[lp + 1]
+            
+            else:
+                next_token: Token = Token(value = "", type = "", position = [])
+
+
+            if token.type == "instruction":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
+
+                else:
+                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "repeat":
+                pass
+
+            elif token.type == "loop_start":
+                
+
+            lp += 1
+
+
+            
+
+
+
+
+
+    
+    def update_path(self, x: int, y: int) -> None:
+        self.path["x_coords"].append(self.x_position)
+        self.path["y_coords"].append(self.y_position)
+
+        self.path_lst.append([x, y])
+        self.direction_lst.append(self.orientation)
+    
+    def turn(self, direction: str) -> str:
+        if direction == "L":
+            if self.orientation == "E":
+                self.orientation = "N"
+            
+            elif self.orientation == "S":
+                self.orientation = "E"
+
+            elif self.orientation == "W":
+                self.orientation = "S"
+
+            elif self.orientation == "N":
+                self.orientation = "W"
+
+        if direction == "R":
+            if self.orientation == "E":
+                self.orientation = "S"
+            
+            elif self.orientation == "S":
+                self.orientation = "W"
+
+            elif self.orientation == "W":
+                self.orientation = "N"
+
+            elif self.orientation == "N":
+                self.orientation = "E"
+
+        return f"The robot has turned and now its facing {self.orientation}"
+            
+    def move(self) -> str:
+        if self.orientation == "E":
+            self.x_position += 1
+
+        if self.orientation == "W":
+            self.x_position -= 1
+
+        if self.orientation == "N":
+            self.y_position += 1
+
+        if self.orientation == "S":
+            self.y_position -= 1
+
+        self.update_path(x = self.x_position, y = self.y_position)
+    
+        return f"The robot has moved one grid. It's new position is ({self.x_position}, {self.y_position})."
+    
+
+    def map_path(self) -> None:
+        wp: dict[str, list[int]] = copy.deepcopy(self.path)
+        pl: list[list[int]] = copy.deepcopy(self.path_lst)
+        
+        #Get min/max values
+        x_min: int = min(wp["x_coords"])
+        y_min: int = min(wp["y_coords"])
+
+        x_max: int = max(wp["x_coords"])
+        y_max: int = max(wp["y_coords"])
+
+        #Create the grid
+        ncol: int = x_max - x_min + 1 #the plus 1 is to be inclusive
+        nrow: int = y_max - y_min + 1
+
+        grid: list[list[str]] = [[" " for _ in range(ncol)] for _ in range(nrow)]
+
+        #Correct for the positioning by flipping the y-axis (smallest y in bottom, largest in top) and re-centering along the x-axis
+        for pair in pl:
+            pair[0] = pair[0] - x_min
+            pair[1] = y_max - pair[1]
+
+        #Fill the grid using the coordinates the robot touched
+        for coord in pl:
+            grid[coord[1]][coord[0]] = "*"
+
+        #Convert the grid into a single list of strings (every row is a single string)
+        path_lst: list[str] = ["".join(_) for _ in grid]
+        
+        #Convert the list into a unified string
+        path_string: str = "\r\n".join(path_lst)
+
+        self.path_map = path_string
+
+    
+
+    def execute(self) -> str:
+        commands: str = self.code
+
+        self.map_loops()
+
+        cp: int = 0
+        call_stack: list[list[int]] = []
+        instruction_stack: list[str] = []
+        while cp < len(commands):
+            inst_count: str = ""
+
+            if commands[cp] == "(":
+                
+                if self.loop_map[cp][1] != 0:
+                    call_stack.append([cp, self.loop_map[cp][1]])
+
+                else:
+                    cp = self.loop_map[cp][0]
+                    
+            elif commands[cp] == ")" and len(call_stack) != 0:
+                current_loop_start: int = call_stack[-1][0]
+                call_stack[-1][1] -= 1
+                repeat: int = call_stack[-1][1]
+
+                if repeat != 0:
+                    cp = current_loop_start
+                    
+
+                else:
+                    call_stack.pop()
+
+            elif (cp == len(commands) - 1 and commands[cp] == "F") or (commands[cp] == "F" and not commands[cp + 1].isnumeric()):
+                self.move()
+
+            elif (cp == len(commands) - 1 and (commands[cp] == "L" or commands[cp] == "R")) or ((commands[cp] == "L" or commands[cp] == "R") and not commands[cp + 1].isnumeric()):
+                self.turn(direction = commands[cp])
+
+            elif (commands[cp] == "F" or commands[cp] == "L" or commands[cp] == "R" or commands[cp] == ")") and commands[cp + 1].isnumeric():
+                instruction_stack.append(commands[cp])
+                
+            elif commands[cp].isnumeric():
+                if len(instruction_stack) != 0:
+                    instruction: str = instruction_stack.pop()
+
+                else:
+                    instruction: str = ""
+
+                sub_pointer: int = cp
+                while sub_pointer < len(commands) and commands[sub_pointer].isnumeric():
+                    inst_count += commands[sub_pointer]
+                    sub_pointer += 1
+                
+                if instruction == ")":
+                    pass
+
+                elif instruction == "F":
+                    for _ in range(int(inst_count)):
+                        self.move()
+
+                elif (instruction == "L" or instruction == "R"):
+                    for _ in range(int(inst_count)):
+                        self.turn(direction = instruction)
+
+                else:
+                    pass
+                
+                cp = sub_pointer - 1
+                
+                
+            cp += 1
+        
+        self.map_path()
+
+        print(self.path_map)
+        return self.path_map
