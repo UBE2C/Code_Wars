@@ -2542,11 +2542,12 @@ class Robot:
         self.y_position: int = 0
         self.token_lst: list[Token] = []
         self.intsruction_lst: list[Instruction] = []
-        self.pattertns: dict[str, Pattern] = {}
+        self.patterns: dict[str, list[Instruction]] = {}
         self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
         self.path_lst: list[list[int]] = [] #to store the x/y coord pairs
         self.direction_lst: list[str] = [] #to store the direction the movement happened
         self.loop_map: dict[int, int] = {}
+        self.pattern_map: dict[int, int] = {}
         self.update_path(x = self.x_position, y = self.y_position)
         self.path_map: str = ""
 
@@ -2572,6 +2573,24 @@ class Robot:
                 loop_map[i] = loop_start #reverse map
 
         self.loop_map = loop_map
+
+    def map_patterns(self) -> None:
+        tokens: list[Token] = self.token_lst
+        stack: list[int] = []
+        pattern_map: dict[int, int] = {}
+
+        for i, token in enumerate(tokens):
+            if token.type == "pattern_start":
+                stack.append(i)
+
+            if token.type == "pattern_end":
+                pattern_start: int = stack.pop()
+                pattern_map[pattern_start] = i #forward map
+                pattern_map[i] = pattern_start #reverse map
+
+        self.pattern_map = pattern_map
+
+
 
     def tokenizer(self) -> None:
         code: str = self.code
@@ -2611,16 +2630,19 @@ class Robot:
 
             cp += 1
 
-
-    def parser(self) -> None:
-        tokens: list[Token] = self.token_lst
+    #I made the parser recursive, so if a pattern is hit it can parse the sub instructions into a separate instruction list
+    def parser(self, token_list: list[Token], instruction_list: list[Instruction], in_pattern: bool = False) -> None:
+        tokens: list[Token] = token_list
         self.map_loops()
+        
+        if in_pattern == False:
+            self.map_patterns()
 
         lp: int = 0
         while lp < len(tokens):
             token: Token = tokens[lp]
             
-            if lp == len(tokens) - 1:
+            if lp < len(tokens) - 1:
                 next_token: Token = tokens[lp + 1]
             
             else:
@@ -2629,18 +2651,48 @@ class Robot:
 
             if token.type == "instruction":
                 if lp == len(tokens) - 1 or next_token.type != "repeat":
-                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
 
                 else:
-                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
 
             elif token.type == "repeat":
                 pass
 
             elif token.type == "loop_start":
+                instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+
+            elif token.type == "loop_end":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
                 
+                else:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "pattern_start":
+                print(token, next_token)
+                if next_token.type != "identifier":
+                    raise SyntaxError(f"parser: a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+
+                pattern_ID: str = "P" + next_token.value
+                sub_tokens: list[Token] = tokens[lp + 2 : len(tokens)]
+                instr_lst: list[Instruction] = []
+                
+                self.parser(token_list = sub_tokens, instruction_list = instr_lst, in_pattern = True)
+
+                self.patterns[pattern_ID] = instr_lst
+                lp = self.pattern_map[lp] - 1
+
+            elif token.type == "pattern_end" and in_pattern == True:
+                break
+
+            elif token.type == "identifier":
+                pass
 
             lp += 1
+
+        if in_pattern == False:
+            self.intsruction_lst
 
 
             
@@ -2815,3 +2867,91 @@ class Robot:
 
         print(self.path_map)
         return self.path_map
+
+
+
+
+
+
+
+
+def parser(self, token_list: list[Token], instruction_list: list[Instruction]) -> None:
+        tokens: list[Token] = token_list
+        self.map_loops()
+
+        lp: int = 0
+        while lp < len(tokens):
+            token: Token = tokens[lp]
+            
+            if lp == len(tokens) - 1:
+                next_token: Token = tokens[lp + 1]
+            
+            else:
+                next_token: Token = Token(value = "", type = "", position = [])
+
+
+            if token.type == "instruction":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
+
+                else:
+                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "repeat":
+                pass
+
+            elif token.type == "loop_start":
+                self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
+
+            elif token.type == "loop_end":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                
+                else:
+                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "pattern_start":
+                if next_token.type != "identifier":
+                    raise SyntaxError(f"parser: a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+
+                pattern_ID: str = "P" + next_token.value
+                sub_lp: int = lp
+                while sub_lp < len(tokens) and tokens[sub_lp].value != "pattern_end":
+                    sub_token: Token = tokens[sub_lp]
+
+                    if sub_token.type == "identifier":
+                        pass
+
+                    elif sub_token.type == "pattern_end":
+                        lp = sub_lp - 1
+                        break
+
+                    else:
+                        instr_lst: list = []
+
+                        if sub_token.type == "instruction":
+                            if lp == len(tokens) - 1 or next_token.type != "repeat":
+                                self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
+
+                            else:
+                                self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+                        elif sub_token.type == "repeat":
+                            pass
+
+                        elif sub_token.type == "loop_start":
+                            self.intsruction_lst.append(Instruction(value = sub_token.value, type = sub_token.type, repeat = 1))
+
+                        elif sub_token.type == "loop_end":
+                            if lp == len(tokens) - 1 or next_sub_token.type != "repeat":
+                                self.intsruction_lst.append(Instruction(value = sub_token.value, type = sub_token.type, repeat = 1))
+                            
+                            else:
+                                self.intsruction_lst.append(Instruction(value = sub_token.value, type = sub_token.type, repeat = int(next_sub_token.value)))
+
+
+                        
+                    
+                    sub_lp += 1
+
+            lp += 1
