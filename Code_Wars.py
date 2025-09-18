@@ -2607,7 +2607,7 @@ class Robot:
                     sub_cp += 1
 
                 if cp == 0:
-                    raise SyntaxError(f"tokenizer: starting an SR3 syntax with a numeric value {code[cp]} is not permitted.")
+                    raise SyntaxError(f"tokenizer: at position {cp} a numeric value {code[cp]} was found, but is not allowed.")
 
                 if code[cp - 1] == "p" or code[cp - 1] == "P":
                     self.token_lst.append(Token(value = number, type = "identifier", position = [cp, sub_cp]))
@@ -2619,6 +2619,9 @@ class Robot:
 
             elif code[cp] == "q":
                 self.token_lst.append(Token(value = code[cp], type = "pattern_end", position = [cp]))
+            
+            else:
+                raise SyntaxError(f"tokenizer: at position {cp}, an unsupported value {code[cp]} was found.")
 
             cp += 1
 
@@ -2666,7 +2669,7 @@ class Robot:
 
             elif token.type == "pattern_start":
                 if next_token.type != "identifier":
-                    raise SyntaxError(f"parser: a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+                    raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
 
                 pattern_ID: str = "P" + next_token.value
                 sub_tokens: list[Token] = tokens[lp + 2 : len(tokens)]
@@ -2696,7 +2699,7 @@ class Robot:
 
             elif token.type == "pattern_call":
                 if next_token.type != "identifier":
-                    raise SyntaxError(f"parser: a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+                    raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
                 
                 instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
             
