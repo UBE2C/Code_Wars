@@ -2497,6 +2497,8 @@ class Robot:
 ###################################################################################################     Esolang Interpreters #11     #####################################################################################################
                                                                                                   #   RoboScript series 4 - 3 kyu   #
 
+import copy
+
 class Token:
     def __init__(self, value: str, type: str, position: list[int]) -> None:
         self.value: str = value
@@ -2628,7 +2630,7 @@ class Robot:
 
     #I made the parser recursive, so if a pattern is hit it can parse the sub instructions into a separate instruction list
     def parser(self, token_list: list[Token], instruction_list: list[Instruction], start_index: int = 0, in_pattern: bool = False) -> None:
-        tokens: list[Token] = token_list.copy()
+        tokens: list[Token] = copy.deepcopy(token_list)
         save_pattern_end: bool = False
 
         lp: int = start_index
@@ -2800,7 +2802,7 @@ class Robot:
     
 
     def execute(self, instruction_list: list[Instruction], pattern_list: dict[str, list[Instruction]], start_index: int = 0, sub_process: bool = False) -> str:
-        instructions: list[Instruction] = instruction_list.copy()
+        instructions: list[Instruction] = copy.deepcopy(instruction_list)
         patterns: dict[str, list[Instruction]] = copy.deepcopy(pattern_list)
 
 
