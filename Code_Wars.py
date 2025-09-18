@@ -2520,19 +2520,6 @@ class Instruction:
     
     def __repr__(self) -> str:
         return self.__str__()
-    
-class Pattern:
-    def __init__(self, identifier: str, value: str, repeat: int) -> None:
-        self.identifier: str = identifier
-        self.value: str = value
-        self.repeat: int = repeat
-
-    def __str__(self) -> str:
-        return f"A pattern with ID: {self.identifier}, value of {self.value} and repeat: {self.repeat}"
-    
-    def __repr__(self) -> str:
-        return self.__str__()
-    
 
 class Robot:
     def __init__(self, code: str) -> None:
@@ -2609,15 +2596,20 @@ class Robot:
             elif code[cp] == "p":
                 self.token_lst.append(Token(value = code[cp], type = "pattern_start", position = [cp]))
 
+            elif code[cp] == "P":
+                self.token_lst.append(Token(value = code[cp], type = "pattern_call", position = [cp]))
+
             elif code[cp].isnumeric():
                 sub_cp: int = cp
                 number: str = ""
                 while sub_cp < len(code) and code[sub_cp].isnumeric():
-                    print(code[sub_cp], code[sub_cp].isnumeric())
                     number += code[sub_cp]
                     sub_cp += 1
 
-                if code[cp - 1] == "p":
+                if cp == 0:
+                    raise SyntaxError(f"tokenizer: starting an SR3 syntax with a numeric value {code[cp]} is not permitted.")
+
+                if code[cp - 1] == "p" or code[cp - 1] == "P":
                     self.token_lst.append(Token(value = number, type = "identifier", position = [cp, sub_cp]))
 
                 else:   
@@ -2632,7 +2624,7 @@ class Robot:
 
     #I made the parser recursive, so if a pattern is hit it can parse the sub instructions into a separate instruction list
     def parser(self, token_list: list[Token], instruction_list: list[Instruction], in_pattern: bool = False) -> None:
-        tokens: list[Token] = token_list
+        tokens: list[Token] = token_list.copy()
         save_pattern_end: bool = False
         
         
@@ -2701,11 +2693,16 @@ class Robot:
 
             elif token.type == "identifier":
                 pass
+
+            elif token.type == "pattern_call":
+                if next_token.type != "identifier":
+                    raise SyntaxError(f"parser: a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+                
+                instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
             
             lp += 1
 
-        if in_pattern == False:
-            self.instruction_lst
+        
 
 
             
