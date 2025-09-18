@@ -2666,7 +2666,7 @@ class Robot:
                 if next_token.type != "identifier":
                     raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
 
-                pattern_ID: str = "P" + next_token.value
+                pattern_ID: str = "P" + next_token.value 
                 instr_lst: list[Instruction] = []
                 
                 if in_pattern == True:
@@ -2675,7 +2675,12 @@ class Robot:
                     save_pattern_end = True
                 
                 self.parser(token_list = tokens, instruction_list = instr_lst, start_index = lp + 2, in_pattern = True)
-                self.patterns[pattern_ID] = instr_lst
+
+                if pattern_ID in self.patterns.keys():
+                    raise ValueError(f"parser: the pattern ID: {pattern_ID} already exists and cannot be defined again.")
+                
+                else:
+                    self.patterns[pattern_ID] = instr_lst
                 
                 
                 lp = self.pattern_map[lp] 
@@ -2830,6 +2835,9 @@ class Robot:
 
                 if len(self.call_stack) > 20:
                     raise RecursionError(f"execute: a pattern {inst.value} has exceeded the maximum recursion depth.")
+                
+                if not inst.value in patterns.keys():
+                    raise ValueError(f"execute: the pattern {inst.value} is not defined.")
                 
                 sub_instructions: list[Instruction] = patterns[inst.value]
                 self.execute(instruction_list = sub_instructions, pattern_list = self.patterns, start_index = 0, sub_process = True)
