@@ -2535,6 +2535,7 @@ class Robot:
         self.direction_lst: list[str] = [] #to store the direction the movement happened
         self.loop_map: dict[int, int] = {}
         self.pattern_map: dict[int, int] = {}
+        self.call_stack: list[int] = []
         self.update_path(x = self.x_position, y = self.y_position)
         self.path_map: str = ""
 
@@ -2697,21 +2698,12 @@ class Robot:
                 if next_token.type != "identifier":
                     raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
                 
-                instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                pattern_ID: str = "P" + next_token.value
+                instruction_list.append(Instruction(value = pattern_ID, type = token.type, repeat = 1))
             
-            print(lp, self.pattern_map, self.loop_map)
             lp += 1
 
         
-
-
-            
-
-
-
-
-
-    
     def update_path(self, x: int, y: int) -> None:
         self.path["x_coords"].append(self.x_position)
         self.path["y_coords"].append(self.y_position)
@@ -2802,166 +2794,59 @@ class Robot:
 
     
 
-    def execute(self) -> str:
-        commands: str = self.code
+    def execute(self, instruction_list: list[Instruction], pattern_list: dict[str, list[Instruction]], start_index: int = 0, sub_process: bool = False) -> str:
+        instructions: list[Instruction] = instruction_list.copy()
+        patterns: dict[str, list[Instruction]] = copy.deepcopy(pattern_list)
 
-        self.map_loops()
 
-        cp: int = 0
-        call_stack: list[list[int]] = []
-        instruction_stack: list[str] = []
-        while cp < len(commands):
-            inst_count: str = ""
+        ip: int = start_index
+        loop_stack: list[int] = []
+        while ip < len(instructions):
+            inst: Instruction = instructions[ip]
 
-            if commands[cp] == "(":
-                
-                if self.loop_map[cp][1] != 0:
-                    call_stack.append([cp, self.loop_map[cp][1]])
-
-                else:
-                    cp = self.loop_map[cp][0]
-                    
-            elif commands[cp] == ")" and len(call_stack) != 0:
-                current_loop_start: int = call_stack[-1][0]
-                call_stack[-1][1] -= 1
-                repeat: int = call_stack[-1][1]
-
-                if repeat != 0:
-                    cp = current_loop_start
-                    
-
-                else:
-                    call_stack.pop()
-
-            elif (cp == len(commands) - 1 and commands[cp] == "F") or (commands[cp] == "F" and not commands[cp + 1].isnumeric()):
-                self.move()
-
-            elif (cp == len(commands) - 1 and (commands[cp] == "L" or commands[cp] == "R")) or ((commands[cp] == "L" or commands[cp] == "R") and not commands[cp + 1].isnumeric()):
-                self.turn(direction = commands[cp])
-
-            elif (commands[cp] == "F" or commands[cp] == "L" or commands[cp] == "R" or commands[cp] == ")") and commands[cp + 1].isnumeric():
-                instruction_stack.append(commands[cp])
-                
-            elif commands[cp].isnumeric():
-                if len(instruction_stack) != 0:
-                    instruction: str = instruction_stack.pop()
-
-                else:
-                    instruction: str = ""
-
-                sub_pointer: int = cp
-                while sub_pointer < len(commands) and commands[sub_pointer].isnumeric():
-                    inst_count += commands[sub_pointer]
-                    sub_pointer += 1
-                
-                if instruction == ")":
-                    pass
-
-                elif instruction == "F":
-                    for _ in range(int(inst_count)):
+            if inst.type == "instruction":
+                if inst.value == "F":
+                    for _ in range(inst.repeat):
                         self.move()
 
-                elif (instruction == "L" or instruction == "R"):
-                    for _ in range(int(inst_count)):
-                        self.turn(direction = instruction)
+                elif inst.value == "R" or inst.value == "L":
+                    for _ in range(inst.repeat):
+                        self.turn(direction = inst.value)
+            
+            elif inst.type == "loop_start":
+                loop_stack.append(ip)
+
+            elif inst.type == "loop_end":
+                inst.repeat -= 1
+                
+                if inst.repeat > 0:
+                    ip = loop_stack[-1]
 
                 else:
-                    pass
+                    loop_stack.pop()
                 
-                cp = sub_pointer - 1
+            elif inst.type == "pattern_call":
+                self.call_stack.append(ip)
+
+                if len(self.call_stack) > 20:
+                    raise RecursionError(f"execute: a pattern {inst.value} has exceeded the maximum recursion depth.")
                 
-                
-            cp += 1
-        
-        self.map_path()
+                sub_instructions: list[Instruction] = patterns[inst.value]
+                self.execute(instruction_list = sub_instructions, pattern_list = self.patterns, start_index = 0, sub_process = True)
+
+                self.call_stack.pop()
+    
+            ip += 1
+            
+        if sub_process == False:
+            self.map_path()
 
         print(self.path_map)
         return self.path_map
 
+    #NOTE:Continue with an overall interpret function to tie all the sub functions together
 
 
 
 
 
-
-
-def parser(self, token_list: list[Token], instruction_list: list[Instruction]) -> None:
-        tokens: list[Token] = token_list
-        self.map_loops()
-
-        lp: int = 0
-        while lp < len(tokens):
-            token: Token = tokens[lp]
-            
-            if lp == len(tokens) - 1:
-                next_token: Token = tokens[lp + 1]
-            
-            else:
-                next_token: Token = Token(value = "", type = "", position = [])
-
-
-            if token.type == "instruction":
-                if lp == len(tokens) - 1 or next_token.type != "repeat":
-                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
-
-                else:
-                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
-
-            elif token.type == "repeat":
-                pass
-
-            elif token.type == "loop_start":
-                self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
-
-            elif token.type == "loop_end":
-                if lp == len(tokens) - 1 or next_token.type != "repeat":
-                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
-                
-                else:
-                    self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
-
-            elif token.type == "pattern_start":
-                if next_token.type != "identifier":
-                    raise SyntaxError(f"parser: a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
-
-                pattern_ID: str = "P" + next_token.value
-                sub_lp: int = lp
-                while sub_lp < len(tokens) and tokens[sub_lp].value != "pattern_end":
-                    sub_token: Token = tokens[sub_lp]
-
-                    if sub_token.type == "identifier":
-                        pass
-
-                    elif sub_token.type == "pattern_end":
-                        lp = sub_lp - 1
-                        break
-
-                    else:
-                        instr_lst: list = []
-
-                        if sub_token.type == "instruction":
-                            if lp == len(tokens) - 1 or next_token.type != "repeat":
-                                self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = 1))
-
-                            else:
-                                self.intsruction_lst.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
-
-                        elif sub_token.type == "repeat":
-                            pass
-
-                        elif sub_token.type == "loop_start":
-                            self.intsruction_lst.append(Instruction(value = sub_token.value, type = sub_token.type, repeat = 1))
-
-                        elif sub_token.type == "loop_end":
-                            if lp == len(tokens) - 1 or next_sub_token.type != "repeat":
-                                self.intsruction_lst.append(Instruction(value = sub_token.value, type = sub_token.type, repeat = 1))
-                            
-                            else:
-                                self.intsruction_lst.append(Instruction(value = sub_token.value, type = sub_token.type, repeat = int(next_sub_token.value)))
-
-
-                        
-                    
-                    sub_lp += 1
-
-            lp += 1
