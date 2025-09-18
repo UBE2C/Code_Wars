@@ -2626,17 +2626,11 @@ class Robot:
             cp += 1
 
     #I made the parser recursive, so if a pattern is hit it can parse the sub instructions into a separate instruction list
-    def parser(self, token_list: list[Token], instruction_list: list[Instruction], in_pattern: bool = False) -> None:
+    def parser(self, token_list: list[Token], instruction_list: list[Instruction], start_index: int = 0, in_pattern: bool = False) -> None:
         tokens: list[Token] = token_list.copy()
         save_pattern_end: bool = False
-        
-        
-        self.map_loops()
 
-        if in_pattern == False:
-            self.map_patterns()
-
-        lp: int = 0
+        lp: int = start_index
         while lp < len(tokens):
             token: Token = tokens[lp]
             
@@ -2672,7 +2666,6 @@ class Robot:
                     raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
 
                 pattern_ID: str = "P" + next_token.value
-                sub_tokens: list[Token] = tokens[lp + 2 : len(tokens)]
                 instr_lst: list[Instruction] = []
                 
                 if in_pattern == True:
@@ -2680,15 +2673,18 @@ class Robot:
                     instruction_list.append(Instruction(value = next_token.value, type = next_token.type, repeat = 1))
                     save_pattern_end = True
                 
-                self.parser(token_list = sub_tokens, instruction_list = instr_lst, in_pattern = True)
+                self.parser(token_list = tokens, instruction_list = instr_lst, start_index = lp + 2, in_pattern = True)
                 self.patterns[pattern_ID] = instr_lst
                 
-                if in_pattern == False:
-                    lp = self.pattern_map[lp]
+                
+                lp = self.pattern_map[lp] 
 
             elif token.type == "pattern_end" and in_pattern == True:
                 if save_pattern_end == True:
                     instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                
+                
+
                 break
 
             elif token.type == "pattern_end" and in_pattern == False:
@@ -2703,6 +2699,7 @@ class Robot:
                 
                 instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
             
+            print(lp, self.pattern_map, self.loop_map)
             lp += 1
 
         
