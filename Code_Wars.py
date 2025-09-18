@@ -2541,7 +2541,7 @@ class Robot:
         self.x_position: int = 0
         self.y_position: int = 0
         self.token_lst: list[Token] = []
-        self.intsruction_lst: list[Instruction] = []
+        self.instruction_lst: list[Instruction] = []
         self.patterns: dict[str, list[Instruction]] = {}
         self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
         self.path_lst: list[list[int]] = [] #to store the x/y coord pairs
@@ -2633,8 +2633,11 @@ class Robot:
     #I made the parser recursive, so if a pattern is hit it can parse the sub instructions into a separate instruction list
     def parser(self, token_list: list[Token], instruction_list: list[Instruction], in_pattern: bool = False) -> None:
         tokens: list[Token] = token_list
-        self.map_loops()
+        save_pattern_end: bool = False
         
+        
+        self.map_loops()
+
         if in_pattern == False:
             self.map_patterns()
 
@@ -2670,7 +2673,6 @@ class Robot:
                     instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
 
             elif token.type == "pattern_start":
-                print(token, next_token)
                 if next_token.type != "identifier":
                     raise SyntaxError(f"parser: a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
 
@@ -2678,21 +2680,32 @@ class Robot:
                 sub_tokens: list[Token] = tokens[lp + 2 : len(tokens)]
                 instr_lst: list[Instruction] = []
                 
+                if in_pattern == True:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                    instruction_list.append(Instruction(value = next_token.value, type = next_token.type, repeat = 1))
+                    save_pattern_end = True
+                
                 self.parser(token_list = sub_tokens, instruction_list = instr_lst, in_pattern = True)
-
                 self.patterns[pattern_ID] = instr_lst
-                lp = self.pattern_map[lp] - 1
+                
+                if in_pattern == False:
+                    lp = self.pattern_map[lp]
 
             elif token.type == "pattern_end" and in_pattern == True:
+                if save_pattern_end == True:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
                 break
+
+            elif token.type == "pattern_end" and in_pattern == False:
+                pass
 
             elif token.type == "identifier":
                 pass
-
+            
             lp += 1
 
         if in_pattern == False:
-            self.intsruction_lst
+            self.instruction_lst
 
 
             
