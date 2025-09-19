@@ -2533,7 +2533,7 @@ class Robot:
         self.instruction_lst: list[Instruction] = []
         self.patterns: dict[str, list[Instruction]] = {}
         self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
-        self.path_lst: list[list[int]] = [] #to store the x/y coord pairs
+        self.coord_lst: list[list[int]] = [] #to store the x/y coord pairs
         self.direction_lst: list[str] = [] #to store the direction the movement happened
         self.loop_map: dict[int, int] = {}
         self.pattern_map: dict[int, int] = {}
@@ -2655,7 +2655,9 @@ class Robot:
                 pass
 
             elif token.type == "loop_start":
-                instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                loop_end: int = self.loop_map[lp]
+                loop_repeat: int = int(tokens[loop_end + 1].value)
+                instruction_list.append(Instruction(value = token.value, type = token.type, repeat = loop_repeat))
 
             elif token.type == "loop_end":
                 if lp == len(tokens) - 1 or next_token.type != "repeat":
@@ -2715,7 +2717,7 @@ class Robot:
         self.path["x_coords"].append(self.x_position)
         self.path["y_coords"].append(self.y_position)
 
-        self.path_lst.append([x, y])
+        self.coord_lst.append([x, y])
         self.direction_lst.append(self.orientation)
     
     def turn(self, direction: str) -> str:
@@ -2767,7 +2769,7 @@ class Robot:
 
     def map_path(self) -> None:
         wp: dict[str, list[int]] = copy.deepcopy(self.path)
-        pl: list[list[int]] = copy.deepcopy(self.path_lst)
+        pl: list[list[int]] = copy.deepcopy(self.coord_lst)
         
         #Get min/max values
         x_min: int = min(wp["x_coords"])
@@ -2792,22 +2794,23 @@ class Robot:
             grid[coord[1]][coord[0]] = "*"
 
         #Convert the grid into a single list of strings (every row is a single string)
-        path_lst: list[str] = ["".join(_) for _ in grid]
+        coord_lst: list[str] = ["".join(_) for _ in grid]
         
         #Convert the list into a unified string
-        path_string: str = "\r\n".join(path_lst)
+        path_string: str = "\r\n".join(coord_lst)
 
         self.path_map = path_string
 
     
 
-    def execute(self, instruction_list: list[Instruction], pattern_list: dict[str, list[Instruction]], start_index: int = 0, sub_process: bool = False) -> str:
+    def execute(self, instruction_list: list[Instruction], pattern_list: dict[str, list[Instruction]], start_index: int = 0, sub_process: bool = False) -> None:
         instructions: list[Instruction] = copy.deepcopy(instruction_list)
         patterns: dict[str, list[Instruction]] = copy.deepcopy(pattern_list)
 
 
         ip: int = start_index
         loop_stack: list[int] = []
+        loop_counter: list[int] = [] #a separate stack containing the repeat condition/number
         while ip < len(instructions):
             inst: Instruction = instructions[ip]
 
@@ -2822,15 +2825,17 @@ class Robot:
             
             elif inst.type == "loop_start":
                 loop_stack.append(ip)
+                loop_counter.append(inst.repeat)
 
             elif inst.type == "loop_end":
-                inst.repeat -= 1
+                loop_counter[-1] -= 1
                 
-                if inst.repeat > 0:
+                if loop_counter[-1] > 0:
                     ip = loop_stack[-1]
 
                 else:
                     loop_stack.pop()
+                    loop_counter.pop()
                 
             elif inst.type == "pattern_call":
                 self.call_stack.append(ip)
@@ -2841,22 +2846,36 @@ class Robot:
                 if not inst.value in patterns.keys():
                     raise ValueError(f"execute: the pattern {inst.value} is not defined.")
                 
+                #recursive self call to execute in-pattern sub-instructions
                 sub_instructions: list[Instruction] = patterns[inst.value]
                 self.execute(instruction_list = sub_instructions, pattern_list = self.patterns, start_index = 0, sub_process = True)
 
                 self.call_stack.pop()
-    
+            
             ip += 1
             
         if sub_process == False:
             self.map_path()
 
+        
+    def interpret(self) -> str:
+        #Call sub-functions
+        self.tokenizer()
+        self.map_loops()
+        self.map_patterns()
+        self.parser(token_list = self.token_lst, 
+                    instruction_list = self.instruction_lst, 
+                    start_index = 0, 
+                    in_pattern = False)
+        self.execute(instruction_list = self.instruction_lst,
+                     pattern_list = self.patterns,
+                     start_index = 0,
+                     sub_process = False)
+        
         print(self.path_map)
         return self.path_map
 
-    #NOTE:Continue with an overall interpret function to tie all the sub functions together
-
-
+###################################################################################################     Kata end     #####################################################################################################
 
 
 
