@@ -2970,7 +2970,41 @@ class Robot:
 
 
     def lexer(self) -> None:
-        code: str = self.code
+        input_code: str = self.code
+        code_lst: list[str] = input_code.split("\n")
+        clean_code_lst: list[str] = []
+
+        lp: int = 0
+        while lp < len(code_lst):
+            line: str = code_lst[lp]
+            
+            if line.startswith("//"):
+                pass
+
+            elif line.startswith("/*"):
+                sub_lp: int = lp
+                while sub_lp < len(code_lst):
+                    if code_lst[sub_lp].endswith("*/"):
+                        break
+
+                    sub_lp += 1
+                    print(sub_lp)
+                lp = sub_lp
+
+            elif line.find("//") != -1:
+                clean_line: str = line.split("//", 2)[0]
+                clean_code_lst.append(clean_line)
+
+            else:
+                clean_code_lst.append(line)
+
+            lp += 1
+
+
+        code: str = ""
+        for line in clean_code_lst:
+            code += line
+
 
         cp: int = 0
         while cp < len(code):
@@ -2991,41 +3025,6 @@ class Robot:
 
             elif code[cp] == " ":
                 self.token_lst.append(Token(value = code[cp], type = "space", position = [cp]))
-
-            elif code[cp] == "\n":
-                self.token_lst.append(Token(value = code[cp], type = "new_line", position = [cp]))
-            
-            elif code[cp] == "/":
-                comment_value: str = ""
-                sub_cp = cp
-                
-                if cp + 1 < len(code) and code[cp + 1] == "/":
-                    sub_cp = cp + 1
-                    while sub_cp < len(code) and code[sub_cp] != "\n":
-                        comment_value += code[sub_cp]
-                        sub_cp += 1
-                        print(comment_value)
-
-                    self.token_lst.append(Token(value = comment_value, type = "sl_comment", position = [cp]))
-
-                    cp = sub_cp - 1
-
-                elif cp + 1 < len(code) and code[cp + 1] == "*":
-                    sub_cp = cp + 1
-                    while sub_cp < len(code):
-                        if code[sub_cp] == "*" and code[sub_cp + 1] == "/":
-                            break 
-                        
-                        else:
-                            comment_value += code[sub_cp]
-                            sub_cp += 1
-
-                    self.token_lst.append(Token(value = comment_value, type = "ml_comment", position = [cp]))
-
-                    cp = sub_cp - 1
-
-                else:
-                    pass
 
             elif code[cp].isnumeric():
                 sub_cp: int = cp
@@ -3076,13 +3075,7 @@ class Robot:
                 else:
                     instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
 
-            elif token.type == "sl_comment":
-                pass
-
-            elif token.type == "ml_comment" or token.type == "ml_comment_end":
-                pass
-
-            elif token.type == "space" or token.type == "new_line":
+            elif token.type == "space":
                 if next_token.type == "repeat":
                     raise SyntaxError(f"parser: at position {lp} a {token.type} should not be followed by a repeat instruction, but {next_token.type} was given.")
 
@@ -3131,8 +3124,6 @@ class Robot:
                 if save_pattern_end == True:
                     instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
                 
-                
-
                 break
 
             elif token.type == "pattern_end" and in_pattern == False:
