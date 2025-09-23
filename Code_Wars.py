@@ -2879,3 +2879,436 @@ class Robot:
 
 
 
+
+
+###################################################################################################     Esolang Interpreters #12     #####################################################################################################
+                                                                                                  #   RoboScript series 5 - 1 kyu   #
+
+
+import copy
+
+class Token:
+    def __init__(self, value: str, type: str, position: list[int]) -> None:
+        self.value: str = value
+        self.type: str = type
+        self.position: list[int] = position
+
+    def __str__(self) -> str:
+        return f"A token with value: {self.value} and type: {self.type}"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+
+class Instruction:
+    def __init__(self, value: str, type: str, repeat: int) -> None:
+        self.value: str = value
+        self.type: str = type
+        self.repeat: int = repeat
+
+    def __str__(self) -> str:
+        return f"An instruction of type: {self.type}, value: {self.value} and repeat: {self.repeat}"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+
+class Robot:
+    def __init__(self, code: str) -> None:
+        self.code: str = code
+        self.orientation: str = "E"
+        self.x_position: int = 0
+        self.y_position: int = 0
+        self.token_lst: list[Token] = []
+        self.instruction_lst: list[Instruction] = []
+        self.patterns: dict[str, list[Instruction]] = {}
+        self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
+        self.coord_lst: list[list[int]] = [] #to store the x/y coord pairs
+        self.direction_lst: list[str] = [] #to store the direction the movement happened
+        self.loop_map: dict[int, int] = {}
+        self.pattern_map: dict[int, int] = {}
+        self.call_stack: list[int] = []
+        self.update_path(x = self.x_position, y = self.y_position)
+        self.path_map: str = ""
+
+    def __repr__(self) -> str:
+        return f"A robot which is facing <{self.orientation}>, and its position is <{self.x_position}, {self.y_position}>."
+    
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def map_loops(self) -> None:
+        tokens: list[Token] = self.token_lst
+        stack: list[int] = []
+        loop_map: dict[int, int] = {}
+
+
+        for i, token in enumerate(tokens):
+            if token.type == "loop_start":
+                stack.append(i)
+
+            if token.type == "loop_end":
+                loop_start: int = stack.pop()
+                loop_map[loop_start] = i #forward map
+                loop_map[i] = loop_start #reverse map
+
+        self.loop_map = loop_map
+
+    def map_patterns(self) -> None:
+        tokens: list[Token] = self.token_lst
+        stack: list[int] = []
+        pattern_map: dict[int, int] = {}
+
+        for i, token in enumerate(tokens):
+            if token.type == "pattern_start":
+                stack.append(i)
+
+            if token.type == "pattern_end":
+                pattern_start: int = stack.pop()
+                pattern_map[pattern_start] = i #forward map
+                pattern_map[i] = pattern_start #reverse map
+
+        self.pattern_map = pattern_map
+
+
+    def lexer(self) -> None:
+        code: str = self.code
+
+        cp: int = 0
+        while cp < len(code):
+            if code[cp] == "F" or code[cp] == "R" or code[cp] == "L":
+                self.token_lst.append(Token(value = code[cp], type = "instruction", position = [cp]))
+
+            elif code[cp] == "(":
+                self.token_lst.append(Token(value = code[cp], type = "loop_start", position = [cp]))
+
+            elif code[cp] == ")":
+                self.token_lst.append(Token(value = code[cp], type = "loop_end", position = [cp]))
+
+            elif code[cp] == "p":
+                self.token_lst.append(Token(value = code[cp], type = "pattern_start", position = [cp]))
+
+            elif code[cp] == "P":
+                self.token_lst.append(Token(value = code[cp], type = "pattern_call", position = [cp]))
+
+            elif code[cp] == " ":
+                self.token_lst.append(Token(value = code[cp], type = "space", position = [cp]))
+
+            elif code[cp] == "\n":
+                self.token_lst.append(Token(value = code[cp], type = "new_line", position = [cp]))
+            
+            elif code[cp] == "/":
+                comment_value: str = ""
+                sub_cp = cp
+                
+                if cp + 1 < len(code) and code[cp + 1] == "/":
+                    sub_cp = cp + 1
+                    while sub_cp < len(code) and code[sub_cp] != "\n":
+                        comment_value += code[sub_cp]
+                        sub_cp += 1
+                        print(comment_value)
+
+                    self.token_lst.append(Token(value = comment_value, type = "sl_comment", position = [cp]))
+
+                    cp = sub_cp - 1
+
+                elif cp + 1 < len(code) and code[cp + 1] == "*":
+                    sub_cp = cp + 1
+                    while sub_cp < len(code):
+                        if code[sub_cp] == "*" and code[sub_cp + 1] == "/":
+                            break 
+                        
+                        else:
+                            comment_value += code[sub_cp]
+                            sub_cp += 1
+
+                    self.token_lst.append(Token(value = comment_value, type = "ml_comment", position = [cp]))
+
+                    cp = sub_cp - 1
+
+                else:
+                    pass
+
+            elif code[cp].isnumeric():
+                sub_cp: int = cp
+                number: str = ""
+                while sub_cp < len(code) and code[sub_cp].isnumeric():
+                    number += code[sub_cp]
+                    sub_cp += 1
+
+                if cp == 0:
+                    raise SyntaxError(f"tokenizer: at position {cp} a numeric value {code[cp]} was found, but is not allowed.")
+
+                if code[cp - 1] == "p" or code[cp - 1] == "P":
+                    self.token_lst.append(Token(value = number, type = "identifier", position = [cp, sub_cp]))
+
+                else:   
+                    self.token_lst.append(Token(value = number, type = "repeat", position = [cp, sub_cp]))
+
+                cp = sub_cp - 1
+
+            elif code[cp] == "q":
+                self.token_lst.append(Token(value = code[cp], type = "pattern_end", position = [cp]))
+            
+            else:
+                raise SyntaxError(f"tokenizer: at position {cp}, an unsupported value {code[cp]} was found.")
+
+            cp += 1
+
+    #I made the parser recursive, so if a pattern is hit it can parse the sub instructions into a separate instruction list
+    def parser(self, token_list: list[Token], instruction_list: list[Instruction], start_index: int = 0, in_pattern: bool = False) -> None:
+        tokens: list[Token] = copy.deepcopy(token_list)
+        save_pattern_end: bool = False
+
+        lp: int = start_index
+        while lp < len(tokens):
+            token: Token = tokens[lp]
+            
+            if lp < len(tokens) - 1:
+                next_token: Token = tokens[lp + 1]
+            
+            else:
+                next_token: Token = Token(value = "", type = "", position = [])
+
+
+            if token.type == "instruction":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+
+                else:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "sl_comment":
+                pass
+
+            elif token.type == "ml_comment" or token.type == "ml_comment_end":
+                pass
+
+            elif token.type == "space" or token.type == "new_line":
+                if next_token.type == "repeat":
+                    raise SyntaxError(f"parser: at position {lp} a {token.type} should not be followed by a repeat instruction, but {next_token.type} was given.")
+
+                else:
+                    pass
+
+            elif token.type == "repeat":
+                pass
+
+            elif token.type == "loop_start":
+                loop_end: int = self.loop_map[lp]
+                loop_repeat: int = int(tokens[loop_end + 1].value)
+                instruction_list.append(Instruction(value = token.value, type = token.type, repeat = loop_repeat))
+
+            elif token.type == "loop_end":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                
+                else:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "pattern_start":
+                if next_token.type != "identifier":
+                    raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+
+                pattern_ID: str = "P" + next_token.value 
+                instr_lst: list[Instruction] = []
+                
+                if in_pattern == True:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                    instruction_list.append(Instruction(value = next_token.value, type = next_token.type, repeat = 1))
+                    save_pattern_end = True
+                
+                self.parser(token_list = tokens, instruction_list = instr_lst, start_index = lp + 2, in_pattern = True)
+
+                if pattern_ID in self.patterns.keys():
+                    raise ValueError(f"parser: the pattern ID: {pattern_ID} already exists and cannot be defined again.")
+                
+                else:
+                    self.patterns[pattern_ID] = instr_lst
+                
+                
+                lp = self.pattern_map[lp] 
+
+            elif token.type == "pattern_end" and in_pattern == True:
+                if save_pattern_end == True:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                
+                
+
+                break
+
+            elif token.type == "pattern_end" and in_pattern == False:
+                pass
+
+            elif token.type == "identifier":
+                pass
+
+            elif token.type == "pattern_call":
+                if next_token.type != "identifier":
+                    raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+                
+                pattern_ID: str = "P" + next_token.value
+                instruction_list.append(Instruction(value = pattern_ID, type = token.type, repeat = 1))
+            
+            lp += 1
+
+        
+    def update_path(self, x: int, y: int) -> None:
+        self.path["x_coords"].append(self.x_position)
+        self.path["y_coords"].append(self.y_position)
+
+        self.coord_lst.append([x, y])
+        self.direction_lst.append(self.orientation)
+    
+    def turn(self, direction: str) -> str:
+        if direction == "L":
+            if self.orientation == "E":
+                self.orientation = "N"
+            
+            elif self.orientation == "S":
+                self.orientation = "E"
+
+            elif self.orientation == "W":
+                self.orientation = "S"
+
+            elif self.orientation == "N":
+                self.orientation = "W"
+
+        if direction == "R":
+            if self.orientation == "E":
+                self.orientation = "S"
+            
+            elif self.orientation == "S":
+                self.orientation = "W"
+
+            elif self.orientation == "W":
+                self.orientation = "N"
+
+            elif self.orientation == "N":
+                self.orientation = "E"
+
+        return f"The robot has turned and now its facing {self.orientation}"
+            
+    def move(self) -> str:
+        if self.orientation == "E":
+            self.x_position += 1
+
+        if self.orientation == "W":
+            self.x_position -= 1
+
+        if self.orientation == "N":
+            self.y_position += 1
+
+        if self.orientation == "S":
+            self.y_position -= 1
+
+        self.update_path(x = self.x_position, y = self.y_position)
+    
+        return f"The robot has moved one grid. It's new position is ({self.x_position}, {self.y_position})."
+    
+
+    def map_path(self) -> None:
+        wp: dict[str, list[int]] = copy.deepcopy(self.path)
+        pl: list[list[int]] = copy.deepcopy(self.coord_lst)
+        
+        #Get min/max values
+        x_min: int = min(wp["x_coords"])
+        y_min: int = min(wp["y_coords"])
+
+        x_max: int = max(wp["x_coords"])
+        y_max: int = max(wp["y_coords"])
+
+        #Create the grid
+        ncol: int = x_max - x_min + 1 #the plus 1 is to be inclusive
+        nrow: int = y_max - y_min + 1
+
+        grid: list[list[str]] = [[" " for _ in range(ncol)] for _ in range(nrow)]
+
+        #Correct for the positioning by flipping the y-axis (smallest y in bottom, largest in top) and re-centering along the x-axis
+        for pair in pl:
+            pair[0] = pair[0] - x_min
+            pair[1] = y_max - pair[1]
+
+        #Fill the grid using the coordinates the robot touched
+        for coord in pl:
+            grid[coord[1]][coord[0]] = "*"
+
+        #Convert the grid into a single list of strings (every row is a single string)
+        coord_lst: list[str] = ["".join(_) for _ in grid]
+        
+        #Convert the list into a unified string
+        path_string: str = "\r\n".join(coord_lst)
+
+        self.path_map = path_string
+
+    
+
+    def execute(self, instruction_list: list[Instruction], pattern_list: dict[str, list[Instruction]], start_index: int = 0, sub_process: bool = False) -> None:
+        instructions: list[Instruction] = copy.deepcopy(instruction_list)
+        patterns: dict[str, list[Instruction]] = copy.deepcopy(pattern_list)
+
+
+        ip: int = start_index
+        loop_stack: list[int] = []
+        loop_counter: list[int] = [] #a separate stack containing the repeat condition/number
+        while ip < len(instructions):
+            inst: Instruction = instructions[ip]
+
+            if inst.type == "instruction":
+                if inst.value == "F":
+                    for _ in range(inst.repeat):
+                        self.move()
+
+                elif inst.value == "R" or inst.value == "L":
+                    for _ in range(inst.repeat):
+                        self.turn(direction = inst.value)
+            
+            elif inst.type == "loop_start":
+                loop_stack.append(ip)
+                loop_counter.append(inst.repeat)
+
+            elif inst.type == "loop_end":
+                loop_counter[-1] -= 1
+                
+                if loop_counter[-1] > 0:
+                    ip = loop_stack[-1]
+
+                else:
+                    loop_stack.pop()
+                    loop_counter.pop()
+                
+            elif inst.type == "pattern_call":
+                self.call_stack.append(ip)
+
+                if len(self.call_stack) > 20:
+                    raise RecursionError(f"execute: a pattern {inst.value} has exceeded the maximum recursion depth.")
+                
+                if not inst.value in patterns.keys():
+                    raise ValueError(f"execute: the pattern {inst.value} is not defined.")
+                
+                #recursive self call to execute in-pattern sub-instructions
+                sub_instructions: list[Instruction] = patterns[inst.value]
+                self.execute(instruction_list = sub_instructions, pattern_list = self.patterns, start_index = 0, sub_process = True)
+
+                self.call_stack.pop()
+            
+            ip += 1
+            
+        if sub_process == False:
+            self.map_path()
+
+        
+    def interpret(self) -> str:
+        #Call sub-functions
+        self.lexer()
+        self.map_loops()
+        self.map_patterns()
+        self.parser(token_list = self.token_lst, 
+                    instruction_list = self.instruction_lst, 
+                    start_index = 0, 
+                    in_pattern = False)
+        self.execute(instruction_list = self.instruction_lst,
+                     pattern_list = self.patterns,
+                     start_index = 0,
+                     sub_process = False)
+        
+        print(self.path_map)
+        return self.path_map
