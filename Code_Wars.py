@@ -2886,6 +2886,11 @@ class Robot:
 
 
 import copy
+from typing import TypedDict
+
+class EnvDict(TypedDict):
+    names: list[str]
+    envs: list[list[str]]
 
 class Token:
     def __init__(self, value: str, type: str, position: list[int]) -> None:
@@ -2911,6 +2916,19 @@ class Instruction:
     def __repr__(self) -> str:
         return self.__str__()
 
+class Pattern:
+    def __init__(self, name: str, value: list[Instruction], local_scope: str, parent_scope: list[str] = []) -> None:
+        self.name: str = name
+        self.value: list[Instruction] = value
+        self.local_scope: str = local_scope
+        self.parent_scope: list[str] = parent_scope
+
+    def __str__(self) -> str:
+        return f"Pattern {self.name}: \ninstructions: < {self.value} >\n< local_scope: {self.local_scope} >\n< parent_scope: {self.parent_scope} >"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
 class Robot:
     def __init__(self, code: str) -> None:
         self.code: str = code
@@ -2919,7 +2937,9 @@ class Robot:
         self.y_position: int = 0
         self.token_lst: list[Token] = []
         self.instruction_lst: list[Instruction] = []
-        self.patterns: dict[str, list[Instruction]] = {}
+        self.pattern_lst: list[Pattern] = []
+        self.pattern_envs: EnvDict = {"names" : [], "envs" : []}
+        self.env_stack: list[str] = ["global"]
         self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
         self.coord_lst: list[list[int]] = [] #to store the x/y coord pairs
         self.direction_lst: list[str] = [] #to store the direction the movement happened
@@ -3101,29 +3121,44 @@ class Robot:
                 if next_token.type != "identifier":
                     raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
 
-                pattern_ID: str = "P" + next_token.value 
+                if len(self.env_stack) < 1:
+                    raise ValueError(f"parser: the env_stack is {len(self.env_stack)} when it should be 1.")
+
+                parent_env: list[str] = self.env_stack.copy()
+
+                pattern_ID: str = "P" + next_token.value
+                self.env_stack.append(pattern_ID)
+
+                local_env: str = self.env_stack[-1]
+            
                 instr_lst: list[Instruction] = []
-                
+                print(instruction_list)
                 if in_pattern == True:
                     instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
                     instruction_list.append(Instruction(value = next_token.value, type = next_token.type, repeat = 1))
                     save_pattern_end = True
+                    print(instruction_list)
                 
                 self.parser(token_list = tokens, instruction_list = instr_lst, start_index = lp + 2, in_pattern = True)
 
-                if pattern_ID in self.patterns.keys():
-                    raise ValueError(f"parser: the pattern ID: {pattern_ID} already exists and cannot be defined again.")
+                #Name duplication check
+                for p in self.pattern_lst:
+                    if p.name == pattern_ID and p.parent_scope[-1] == parent_env[-1]:
+                        raise ValueError(f"parser: the pattern ID: {pattern_ID} already exists in this environment {parent_env[-1]} and cannot be defined again.")
                 
-                else:
-                    self.patterns[pattern_ID] = instr_lst
+                    
+                self.pattern_lst.append(Pattern(name = pattern_ID, value = instr_lst, local_scope = local_env, parent_scope = parent_env)) 
                 
                 
-                lp = self.pattern_map[lp] 
+                if in_pattern == False:
+                    lp = self.pattern_map[lp] 
 
             elif token.type == "pattern_end" and in_pattern == True:
                 if save_pattern_end == True:
                     instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
-                
+                print(self.env_stack)
+                self.env_stack.pop()
+                print(self.env_stack)
                 break
 
             elif token.type == "pattern_end" and in_pattern == False:
@@ -3138,10 +3173,18 @@ class Robot:
                 
                 pattern_ID: str = "P" + next_token.value
                 instruction_list.append(Instruction(value = pattern_ID, type = token.type, repeat = 1))
-            
+            print(lp)
             lp += 1
 
-        
+    def map_pattern_envs(self) -> None:
+        #Transfer ownership
+        pattern_list: list[Pattern] = copy.deepcopy(self.pattern_lst)
+
+        for pat in pattern_list:
+            self.pattern_envs["names"].append(pat.name)
+            self.pattern_envs["envs"].append(pat.parent_scope)
+
+
     def update_path(self, x: int, y: int) -> None:
         self.path["x_coords"].append(self.x_position)
         self.path["y_coords"].append(self.y_position)
@@ -3232,9 +3275,10 @@ class Robot:
 
     
 
-    def execute(self, instruction_list: list[Instruction], pattern_list: dict[str, list[Instruction]], start_index: int = 0, sub_process: bool = False) -> None:
+    def execute(self, instruction_list: list[Instruction], pattern_list: list[Pattern], start_index: int = 0, sub_process: bool = False) -> None:
         instructions: list[Instruction] = copy.deepcopy(instruction_list)
-        patterns: dict[str, list[Instruction]] = copy.deepcopy(pattern_list)
+        pattern_lst: list[Pattern] = copy.deepcopy(pattern_list)
+        envs: EnvDict = copy.deepcopy(self.pattern_envs)
 
 
         ip: int = start_index
@@ -3269,18 +3313,42 @@ class Robot:
             elif inst.type == "pattern_call":
                 self.call_stack.append(ip)
 
+                
                 if len(self.call_stack) > 20:
                     raise RecursionError(f"execute: a pattern {inst.value} has exceeded the maximum recursion depth.")
                 
-                if not inst.value in patterns.keys():
-                    raise ValueError(f"execute: the pattern {inst.value} is not defined.")
+                #Retrieve the pattern names and indices in the current environment
+                local_pattern_names: list[str] = []
+                local_pattern_indices: list[int] = []
+                for i, path in enumerate(envs["envs"]):
+                    if path == self.env_stack:
+                        local_pattern_names.append(envs["names"][i])
+                        local_pattern_indices.append(i)
+
+                if not inst.value in local_pattern_names:
+                    raise ValueError(f"execute: the pattern {inst.value} is not defined or out of scope.")
                 
+                #Select the proper pattern index based on the current env and pattern name
+                pattern_to_execute: int = 0
+                for i, name in enumerate(local_pattern_names):
+                    if name == inst.value:
+                        pattern_to_execute = i
+
+                #Push the new new current env onto the env_stack
+                #print("before push:", self.env_stack, inst.value)
+                self.env_stack.append(inst.value)
+                #print("after push:", self.env_stack)
+
                 #recursive self call to execute in-pattern sub-instructions
-                sub_instructions: list[Instruction] = patterns[inst.value]
-                self.execute(instruction_list = sub_instructions, pattern_list = self.patterns, start_index = 0, sub_process = True)
+                sub_instructions: list[Instruction] = pattern_lst[pattern_to_execute].value
+                #print(sub_instructions)
+                self.execute(instruction_list = sub_instructions, pattern_list = self.pattern_lst, start_index = 0, sub_process = True)
+                #print("after recursive call:", self.env_stack, inst.value)
 
                 self.call_stack.pop()
-            
+
+                self.env_stack.pop()
+                #print("after pop:", self.env_stack)
             ip += 1
             
         if sub_process == False:
@@ -3303,3 +3371,7 @@ class Robot:
         
         print(self.path_map)
         return self.path_map
+
+
+d = {'global': {'p1': 'FFRF'}}
+d.
