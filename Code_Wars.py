@@ -2997,6 +2997,7 @@ class Robot:
         lp: int = 0
         while lp < len(code_lst):
             line: str = code_lst[lp]
+            line: str = line.strip()
             
             if line.startswith("//"):
                 pass
@@ -3008,8 +3009,26 @@ class Robot:
                         break
 
                     sub_lp += 1
-                    print(sub_lp)
+    
                 lp = sub_lp
+
+            elif line.find("/*") != -1:
+                comment_start: int = line.find("/*")
+                
+                if line.find("*/") != -1:
+                    comment_end: int = line.find("*/") + 2 #to jump tp the next character after the comment
+
+                else:
+                    comment_end: int = len(line)
+
+                clean_line: str = line[slice(0, comment_start)] + line[slice(comment_end, len(line))]
+                clean_code_lst.append(clean_line)
+
+            elif line.find("*/") != -1:
+                comment_end: int = line.find("*/") + 2
+
+                clean_line: str = line[slice(comment_end, len(line))]
+                clean_code_lst.append(clean_line)
 
             elif line.find("//") != -1:
                 clean_line: str = line.split("//", 2)[0]
@@ -3038,14 +3057,22 @@ class Robot:
                 self.token_lst.append(Token(value = code[cp], type = "loop_end", position = [cp]))
 
             elif code[cp] == "p":
-                self.token_lst.append(Token(value = code[cp], type = "pattern_start", position = [cp]))
+                if cp < len(code) and not code[cp + 1].isnumeric():
+                    raise SyntaxError(f"tokenizer: at position {cp} a pattern declaration must be followed by a numeric value, none was found {code[cp + 1]}.")
+                
+                else:
+                    self.token_lst.append(Token(value = code[cp], type = "pattern_start", position = [cp]))
 
             elif code[cp] == "P":
                 self.token_lst.append(Token(value = code[cp], type = "pattern_call", position = [cp]))
 
             elif code[cp] == " ":
-                self.token_lst.append(Token(value = code[cp], type = "space", position = [cp]))
-
+                if cp < len(code) and code[cp + 1].isnumeric():
+                    raise SyntaxError(f"tokenizer: at position {cp} a space is followed by a numeric value {code[cp + 1]} which is not allowed.")
+                
+                else:
+                    pass
+                
             elif code[cp].isnumeric():
                 sub_cp: int = cp
                 number: str = ""
@@ -3059,7 +3086,10 @@ class Robot:
                 if code[cp - 1] == "p" or code[cp - 1] == "P":
                     self.token_lst.append(Token(value = number, type = "identifier", position = [cp, sub_cp]))
 
-                else:   
+                else:
+                    if len(number) > 1 and number.startswith("0"):
+                        raise SyntaxError(f"tokenizer: at position {cp} a repeat value starts with 0 {number} which is not allowed.")
+
                     self.token_lst.append(Token(value = number, type = "repeat", position = [cp, sub_cp]))
 
                 cp = sub_cp - 1
@@ -3075,7 +3105,6 @@ class Robot:
     #I made the parser recursive, so if a pattern is hit it can parse the sub instructions into a separate instruction list
     def parser(self, token_list: list[Token], instruction_list: list[Instruction], start_index: int = 0, in_pattern: bool = False) -> None:
         tokens: list[Token] = copy.deepcopy(token_list)
-        save_pattern_end: bool = False
 
         lp: int = start_index
         while lp < len(tokens):
@@ -3094,13 +3123,6 @@ class Robot:
 
                 else:
                     instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
-
-            elif token.type == "space":
-                if next_token.type == "repeat":
-                    raise SyntaxError(f"parser: at position {lp} a {token.type} should not be followed by a repeat instruction, but {next_token.type} was given.")
-
-                else:
-                    pass
 
             elif token.type == "repeat":
                 pass
@@ -3124,41 +3146,38 @@ class Robot:
                 if len(self.env_stack) < 1:
                     raise ValueError(f"parser: the env_stack is {len(self.env_stack)} when it should be 1.")
 
-                parent_env: list[str] = self.env_stack.copy()
+                #Transfer ownership of the env_stack
+                parent_env: list[str] = copy.deepcopy(self.env_stack)
 
+                #Define the call ID for the defined pattern
                 pattern_ID: str = "P" + next_token.value
+                
+                #Push the pattern ID to the env stack
                 self.env_stack.append(pattern_ID)
 
+                #Define the local env (the env inside the pattern)
                 local_env: str = self.env_stack[-1]
             
+                #Define a new instruction list for the recursive parser call
                 instr_lst: list[Instruction] = []
-                print(instruction_list)
-                if in_pattern == True:
-                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
-                    instruction_list.append(Instruction(value = next_token.value, type = next_token.type, repeat = 1))
-                    save_pattern_end = True
-                    print(instruction_list)
                 
+                #If another pattern definition is found nested inside the previous definition, call the parser recursively
                 self.parser(token_list = tokens, instruction_list = instr_lst, start_index = lp + 2, in_pattern = True)
 
-                #Name duplication check
+                #Pattern name duplication check
                 for p in self.pattern_lst:
                     if p.name == pattern_ID and p.parent_scope[-1] == parent_env[-1]:
                         raise ValueError(f"parser: the pattern ID: {pattern_ID} already exists in this environment {parent_env[-1]} and cannot be defined again.")
                 
-                    
+                #Create the new pattern definition with the associated instructions and push it onto the pattern list    
                 self.pattern_lst.append(Pattern(name = pattern_ID, value = instr_lst, local_scope = local_env, parent_scope = parent_env)) 
                 
-                
-                if in_pattern == False:
-                    lp = self.pattern_map[lp] 
+                #When a pattern is fully defined jump over the definition to continue with the parsing
+                lp = self.pattern_map[lp] 
 
             elif token.type == "pattern_end" and in_pattern == True:
-                if save_pattern_end == True:
-                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
-                print(self.env_stack)
                 self.env_stack.pop()
-                print(self.env_stack)
+                
                 break
 
             elif token.type == "pattern_end" and in_pattern == False:
@@ -3173,8 +3192,9 @@ class Robot:
                 
                 pattern_ID: str = "P" + next_token.value
                 instruction_list.append(Instruction(value = pattern_ID, type = token.type, repeat = 1))
-            print(lp)
+            
             lp += 1
+            
 
     def map_pattern_envs(self) -> None:
         #Transfer ownership
@@ -3273,13 +3293,11 @@ class Robot:
 
         self.path_map = path_string
 
-    
 
     def execute(self, instruction_list: list[Instruction], pattern_list: list[Pattern], start_index: int = 0, sub_process: bool = False) -> None:
         instructions: list[Instruction] = copy.deepcopy(instruction_list)
         pattern_lst: list[Pattern] = copy.deepcopy(pattern_list)
         envs: EnvDict = copy.deepcopy(self.pattern_envs)
-
 
         ip: int = start_index
         loop_stack: list[int] = []
@@ -3297,8 +3315,12 @@ class Robot:
                         self.turn(direction = inst.value)
             
             elif inst.type == "loop_start":
-                loop_stack.append(ip)
-                loop_counter.append(inst.repeat)
+                if inst.repeat == 0:
+                    ip = self.loop_map[ip]
+                
+                else:
+                    loop_stack.append(ip)
+                    loop_counter.append(inst.repeat)
 
             elif inst.type == "loop_end":
                 loop_counter[-1] -= 1
@@ -3312,43 +3334,57 @@ class Robot:
                 
             elif inst.type == "pattern_call":
                 self.call_stack.append(ip)
-
                 
+                #Define max recursion depth
                 if len(self.call_stack) > 20:
                     raise RecursionError(f"execute: a pattern {inst.value} has exceeded the maximum recursion depth.")
-                
-                #Retrieve the pattern names and indices in the current environment
-                local_pattern_names: list[str] = []
-                local_pattern_indices: list[int] = []
-                for i, path in enumerate(envs["envs"]):
-                    if path == self.env_stack:
-                        local_pattern_names.append(envs["names"][i])
-                        local_pattern_indices.append(i)
 
-                if not inst.value in local_pattern_names:
-                    raise ValueError(f"execute: the pattern {inst.value} is not defined or out of scope.")
+                #Check if the called pattern is defined
+                if inst.value not in envs["names"]:
+                    raise ValueError(f"execute: the pattern {inst.value} is not defined.")
                 
-                #Select the proper pattern index based on the current env and pattern name
-                pattern_to_execute: int = 0
-                for i, name in enumerate(local_pattern_names):
+                #Pull out the indices for every matching pattern from the pattern_env map
+                matching_pattern_indices: list[int] = []
+                for i, name in enumerate(envs["names"]):
                     if name == inst.value:
-                        pattern_to_execute = i
+                        matching_pattern_indices.append(i)
 
-                #Push the new new current env onto the env_stack
-                #print("before push:", self.env_stack, inst.value)
+                #Pull out the definition environment paths for the matching patterns
+                definition_envs: list[list[str]] = [envs["envs"][_] for _ in matching_pattern_indices]
+                
+                #Compare the env paths of the matching patterns to the caller env path and see if it can reach any of the matching patterns
+                match_found: bool = False #break condition
+                call_index: int = 0 #the index of the matching pattern which is reachable for the caller
+                for i, env in enumerate(definition_envs):
+                    caller_env: list[str] = copy.deepcopy(self.env_stack) #the env where the call happened
+                    for _ in range(len(caller_env)):
+                        if env == caller_env:
+                            match_found = True
+                            call_index = matching_pattern_indices[i]
+                            break
+                        else:
+                            caller_env.pop()
+                    
+                    if match_found == True:
+                        break
+                
+                #If none of the called patterns are available to the caller throw error
+                if match_found == False:
+                    raise ValueError(f"execute: the pattern {inst.value} is out of scope.")
+                          
+                #Once the call has been made enter the caller env
                 self.env_stack.append(inst.value)
-                #print("after push:", self.env_stack)
-
+                
                 #recursive self call to execute in-pattern sub-instructions
-                sub_instructions: list[Instruction] = pattern_lst[pattern_to_execute].value
-                #print(sub_instructions)
+                sub_instructions: list[Instruction] = pattern_lst[call_index].value
                 self.execute(instruction_list = sub_instructions, pattern_list = self.pattern_lst, start_index = 0, sub_process = True)
-                #print("after recursive call:", self.env_stack, inst.value)
-
+                
+                #Once the call has finished pop the instruction pointer from the call stack
                 self.call_stack.pop()
 
+                #Once the call has finished leave the caller env
                 self.env_stack.pop()
-                #print("after pop:", self.env_stack)
+                
             ip += 1
             
         if sub_process == False:
@@ -3364,14 +3400,328 @@ class Robot:
                     instruction_list = self.instruction_lst, 
                     start_index = 0, 
                     in_pattern = False)
+        self.map_pattern_envs()
         self.execute(instruction_list = self.instruction_lst,
-                     pattern_list = self.patterns,
+                     pattern_list = self.pattern_lst,
                      start_index = 0,
                      sub_process = False)
         
         print(self.path_map)
         return self.path_map
+    
 
 
-d = {'global': {'p1': 'FFRF'}}
-d.
+
+
+
+
+
+
+
+class RSUProgram:
+    def __init__(self, code: str) -> None:
+        self.code: str = code
+        self.orientation: str = "E"
+        self.x_position: int = 0
+        self.y_position: int = 0
+        self.token_lst: list[Token] = []
+        self.instruction_lst: list[Instruction] = []
+        self.pattern_lst: list[Pattern] = []
+        self.pattern_envs: EnvDict = {"names" : [], "envs" : []}
+        self.env_stack: list[str] = ["global"]
+        self.path: dict[str, list[int]] = {"x_coords" : [], "y_coords" : []} #for simple access to min/max values
+        self.coord_lst: list[list[int]] = [] #to store the x/y coord pairs
+        self.direction_lst: list[str] = [] #to store the direction the movement happened
+        self.loop_map: dict[int, int] = {}
+        self.pattern_map: dict[int, int] = {}
+        self.call_stack: list[int] = []
+        #self.update_path(x = self.x_position, y = self.y_position)
+        self.path_map: str = ""
+
+    def __repr__(self) -> str:
+        return f"A robot which is facing <{self.orientation}>, and its position is <{self.x_position}, {self.y_position}>."
+    
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def map_loops(self) -> None:
+        tokens: list[Token] = self.token_lst
+        stack: list[int] = []
+        loop_map: dict[int, int] = {}
+
+
+        for i, token in enumerate(tokens):
+            if token.type == "loop_start":
+                stack.append(i)
+
+            if token.type == "loop_end":
+                loop_start: int = stack.pop()
+                loop_map[loop_start] = i #forward map
+                loop_map[i] = loop_start #reverse map
+
+        self.loop_map = loop_map
+
+    def map_patterns(self) -> None:
+        tokens: list[Token] = self.token_lst
+        stack: list[int] = []
+        pattern_map: dict[int, int] = {}
+
+        for i, token in enumerate(tokens):
+            if token.type == "pattern_start":
+                stack.append(i)
+
+            if token.type == "pattern_end":
+                pattern_start: int = stack.pop()
+                pattern_map[pattern_start] = i #forward map
+                pattern_map[i] = pattern_start #reverse map
+
+        self.pattern_map = pattern_map
+
+
+    def lexer(self) -> None:
+        input_code: str = self.code
+        code_lst: list[str] = input_code.split("\n")
+        clean_code_lst: list[str] = []
+
+        lp: int = 0
+        while lp < len(code_lst):
+            line: str = code_lst[lp]
+            line: str = line.strip()
+
+            if lp + 1 < len(code_lst):
+                next_line: str = code_lst[lp + 1]
+            else:
+                next_line: str = ""
+            next_line.strip()
+            
+            if line.startswith("//"):
+                pass
+
+            elif line.startswith("/*"):
+                sub_lp: int = lp
+                while sub_lp < len(code_lst):
+                    if code_lst[sub_lp].endswith("*/"):
+                        break
+
+                    sub_lp += 1
+    
+                lp = sub_lp
+
+            elif line.find("/*") != -1:
+                comment_start: int = line.find("/*")
+                
+                if line.find("*/") != -1:
+                    comment_end: int = line.find("*/") + 2 #to jump tp the next character after the comment
+
+                    if line[comment_end].isnumeric():
+                        raise SyntaxError(f"tokenizer: at position {comment_end} a comment should not be followed by a numeric value.")
+
+                else:
+                    comment_end: int = len(line)
+
+                clean_line: str = line[slice(0, comment_start)] + line[slice(comment_end, len(line))]
+                clean_code_lst.append(clean_line)
+
+            elif line.find("*/") != -1:
+                comment_end: int = line.find("*/") + 2
+
+                if line[comment_end].isnumeric():
+                    raise SyntaxError(f"tokenizer: at position {comment_end} a comment should not be followed by a numeric value.")
+
+                clean_line: str = line[slice(comment_end, len(line))]
+                clean_code_lst.append(clean_line)
+
+            elif line.find("//") != -1:
+                if next_line[0].isnumeric():
+                    raise SyntaxError(f"tokenizer: at position {lp} a comment should not be followed by a numeric value.")
+
+                clean_line: str = line.split("//", 2)[0]
+                clean_code_lst.append(clean_line)
+
+            else:
+                clean_code_lst.append(line)
+
+            lp += 1
+
+
+        code: str = ""
+        for line in clean_code_lst:
+            code += line
+
+
+        cp: int = 0
+        while cp < len(code):
+            if code[cp] == "F" or code[cp] == "R" or code[cp] == "L":
+                self.token_lst.append(Token(value = code[cp], type = "instruction", position = [cp]))
+
+            elif code[cp] == "(":
+                self.token_lst.append(Token(value = code[cp], type = "loop_start", position = [cp]))
+
+            elif code[cp] == ")":
+                self.token_lst.append(Token(value = code[cp], type = "loop_end", position = [cp]))
+
+            elif code[cp] == "p":
+                if cp + 1 < len(code) and not code[cp + 1].isnumeric():
+                    raise SyntaxError(f"tokenizer: at position {cp} a pattern declaration must be followed by a numeric value, instead {code[cp + 1]} was found.")
+                
+                elif cp == len(code) - 1:
+                    raise SyntaxError(f"tokenizer: at position {cp} a pattern declaration must be followed by a numeric value, but none was found.")
+                
+                else:
+                    self.token_lst.append(Token(value = code[cp], type = "pattern_start", position = [cp]))
+
+            elif code[cp] == "P":
+                if cp + 1 < len(code) and not code[cp + 1].isnumeric():
+                    raise SyntaxError(f"tokenizer: at position {cp} a pattern declaration must be followed by a numeric value, instead {code[cp + 1]} was found.")
+                
+                elif cp == len(code) - 1:
+                    raise SyntaxError(f"tokenizer: at position {cp} a pattern declaration must be followed by a numeric value, but none was found.")
+                
+                else:
+                    self.token_lst.append(Token(value = code[cp], type = "pattern_call", position = [cp]))
+
+            elif code[cp] == " ":
+                if cp < len(code) and code[cp + 1].isnumeric():
+                    raise SyntaxError(f"tokenizer: at position {cp} a space is followed by a numeric value {code[cp + 1]} which is not allowed.")
+                
+                else:
+                    pass
+                
+            elif code[cp].isnumeric():
+                sub_cp: int = cp
+                number: str = ""
+                while sub_cp < len(code) and code[sub_cp].isnumeric():
+                    number += code[sub_cp]
+                    sub_cp += 1
+
+                if cp == 0:
+                    raise SyntaxError(f"tokenizer: at position {cp} a numeric value {code[cp]} was found, but is not allowed.")
+                
+                if len(number) > 1 and number.startswith("0"):
+                        raise SyntaxError(f"tokenizer: at position {cp} a repeat value starts with 0 {number} which is not allowed.")
+
+                if code[cp - 1] == "p" or code[cp - 1] == "P":
+                    self.token_lst.append(Token(value = number, type = "identifier", position = [cp, sub_cp]))
+
+                else:
+                    self.token_lst.append(Token(value = number, type = "repeat", position = [cp, sub_cp]))
+
+                cp = sub_cp - 1
+
+            elif code[cp] == "q":
+                self.token_lst.append(Token(value = code[cp], type = "pattern_end", position = [cp]))
+            
+            else:
+                raise SyntaxError(f"tokenizer: at position {cp}, an unsupported value {code[cp]} was found.")
+
+            cp += 1
+
+    def parser(self, token_list: list[Token], instruction_list: list[Instruction], start_index: int = 0, in_pattern: bool = False) -> None:
+        tokens: list[Token] = copy.deepcopy(token_list)
+
+        lp: int = start_index
+        while lp < len(tokens):
+            token: Token = tokens[lp]
+            
+            if lp < len(tokens) - 1:
+                next_token: Token = tokens[lp + 1]
+            
+            else:
+                next_token: Token = Token(value = "", type = "", position = [])
+
+
+            if token.type == "instruction":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+
+                else:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "repeat":
+                pass
+
+            elif token.type == "loop_start":
+                loop_end: int = self.loop_map[lp]
+                loop_repeat: int = int(tokens[loop_end + 1].value)
+                instruction_list.append(Instruction(value = token.value, type = token.type, repeat = loop_repeat))
+
+            elif token.type == "loop_end":
+                if lp == len(tokens) - 1 or next_token.type != "repeat":
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = 1))
+                
+                else:
+                    instruction_list.append(Instruction(value = token.value, type = token.type, repeat = int(next_token.value)))
+
+            elif token.type == "pattern_start":
+                if next_token.type != "identifier":
+                    raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+
+                if len(self.env_stack) < 1:
+                    raise ValueError(f"parser: the env_stack is {len(self.env_stack)} when it should be 1.")
+
+                #Transfer ownership of the env_stack
+                parent_env: list[str] = copy.deepcopy(self.env_stack)
+
+                #Define the call ID for the defined pattern
+                pattern_ID: str = "P" + next_token.value
+                
+                #Push the pattern ID to the env stack
+                self.env_stack.append(pattern_ID)
+
+                #Define the local env (the env inside the pattern)
+                local_env: str = self.env_stack[-1]
+            
+                #Define a new instruction list for the recursive parser call
+                instr_lst: list[Instruction] = []
+                
+                #If another pattern definition is found nested inside the previous definition, call the parser recursively
+                self.parser(token_list = tokens, instruction_list = instr_lst, start_index = lp + 2, in_pattern = True)
+
+                #Pattern name duplication check
+                for p in self.pattern_lst:
+                    if p.name == pattern_ID and p.parent_scope[-1] == parent_env[-1]:
+                        raise ValueError(f"parser: the pattern ID: {pattern_ID} already exists in this environment {parent_env[-1]} and cannot be defined again.")
+                
+                #Create the new pattern definition with the associated instructions and push it onto the pattern list    
+                self.pattern_lst.append(Pattern(name = pattern_ID, value = instr_lst, local_scope = local_env, parent_scope = parent_env)) 
+                
+                #When a pattern is fully defined jump over the definition to continue with the parsing
+                lp = self.pattern_map[lp] 
+
+            elif token.type == "pattern_end" and in_pattern == True:
+                self.env_stack.pop()
+                
+                break
+
+            elif token.type == "pattern_end" and in_pattern == False:
+                pass
+
+            elif token.type == "identifier":
+                pass
+
+            elif token.type == "pattern_call":
+                if next_token.type != "identifier":
+                    raise SyntaxError(f"parser: at position {lp} a {token.type} instruction must be followed by a pattern identifier, but {next_token.type} was given.")
+                
+                pattern_ID: str = "P" + next_token.value
+                instruction_list.append(Instruction(value = pattern_ID, type = token.type, repeat = 1))
+            
+            lp += 1
+
+            if in_pattern == False:
+                raw_instructions: list[str] = []
+
+
+                print(raw_instructions)
+            
+
+    def map_pattern_envs(self) -> None:
+        #Transfer ownership
+        pattern_list: list[Pattern] = copy.deepcopy(self.pattern_lst)
+
+        for pat in pattern_list:
+            self.pattern_envs["names"].append(pat.name)
+            self.pattern_envs["envs"].append(pat.parent_scope)
+
+
+    def convertToRaw(self, )
