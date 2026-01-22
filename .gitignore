@@ -1,2 +1,5 @@
 #Ignore the environmental setting file
 environment.yml
+
+#Ignore compiled c binaries
+bins/
